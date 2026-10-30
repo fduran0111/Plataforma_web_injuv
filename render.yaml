@@ -1,0 +1,21 @@
+# Blueprint Render — API FastAPI (INJUV)
+# https://render.com/docs/blueprint-spec
+#
+# Uso: Render Dashboard → New → Blueprint → conectar repo → aplicar.
+# Los secretos (JWT_SECRET, DATABASE_URL) se definen en el panel, no en este archivo.
+
+services:
+  - type: web
+    name: injuv-api
+    runtime: python
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn injuv.api.app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: PYTHONPATH
+        value: src

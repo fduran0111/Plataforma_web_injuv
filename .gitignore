@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+.venv_win/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Entorno local
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.idea/
+.vscode/
+*.code-workspace
+desktop.ini
+Thumbs.db
+.DS_Store
+
+# Archivos subidos por la app (opcional: versionar solo .gitkeep en storage/)
+storage/*
+!storage/.gitkeep
+
+# Frontend Next.js (frontend-react/)
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
