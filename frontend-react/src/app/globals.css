@@ -1,0 +1,169 @@
+@import "tailwindcss";
+
+:root {
+  /* Paleta INJUV (azul y rojo institucional) */
+  --brand-primary: #0052cc;
+  --brand-dark: #003d99;
+  --brand-secondary: #0b7bdc;
+  --brand-soft: #e8f0fd;
+  --brand-red: #e3242b;
+
+  /* Materialidad "Chile en movimiento": papel, tinta y ámbar de timbre */
+  --papel: #f4efe6;
+  --papel-strong: #ebe3d4;
+  --tinta: #0f1b2d;
+  --ambar: #f2a93b;
+
+  --bg-page: var(--papel);
+  --bg-surface: #fffdf8;
+  --border-default: #d8d0c2;
+  --text-primary: var(--tinta);
+  --text-secondary: #33405a;
+  --text-muted: #65708a;
+}
+
+@theme inline {
+  --color-brand: var(--brand-primary);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-secondary: var(--brand-secondary);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-red: var(--brand-red);
+  --color-papel: var(--papel);
+  --color-papel-strong: var(--papel-strong);
+  --color-tinta: var(--tinta);
+  --color-ambar: var(--ambar);
+  --color-page: var(--bg-page);
+  --color-surface: var(--bg-surface);
+  --color-border: var(--border-default);
+  --color-fg: var(--text-primary);
+  --color-fg-secondary: var(--text-secondary);
+  --color-fg-muted: var(--text-muted);
+
+  --font-sans: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-bricolage), var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+
+  /* Escala fluida: móvil 375px → escritorio 1280px */
+  --text-display: clamp(2.5rem, 1.6rem + 3.8vw, 4.75rem);
+  --text-display--line-height: 0.98;
+  --text-display--letter-spacing: -0.03em;
+  --text-h1: clamp(2rem, 1.45rem + 2.2vw, 3.25rem);
+  --text-h1--line-height: 1.05;
+  --text-h1--letter-spacing: -0.025em;
+  --text-h2: clamp(1.5rem, 1.2rem + 1.3vw, 2.25rem);
+  --text-h2--line-height: 1.12;
+  --text-h2--letter-spacing: -0.02em;
+  --text-h3: clamp(1.125rem, 1rem + 0.5vw, 1.375rem);
+  --text-h3--line-height: 1.25;
+  --text-h3--letter-spacing: -0.01em;
+
+  --shadow-recorte: 4px 4px 0 0 var(--brand-dark);
+  --shadow-recorte-lg: 7px 7px 0 0 var(--brand-dark);
+}
+
+@layer base {
+  body {
+    background-color: var(--bg-page);
+    /* Grano de papel: ruido fractal inline, opacidad máx. 0.06 */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.06 0 0 0 0 0.1 0 0 0 0 0.18 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='0.06'/%3E%3C/svg%3E");
+    color: var(--text-primary);
+    font-feature-settings: "ss01", "cv05";
+  }
+
+  /* Títulos: Bricolage Grotesque con el eje de peso variable */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-variation-settings: "wght" 650, "opsz" 48;
+  }
+}
+
+@layer components {
+  .font-display {
+    font-variation-settings: "wght" 650, "opsz" 48;
+  }
+
+  /* Título "vivo": sube de peso en hover del grupo sin mover el layout */
+  .titulo-vivo {
+    font-variation-settings: "wght" 620, "opsz" 24;
+    transition: font-variation-settings 380ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .group:hover .titulo-vivo,
+  .group:focus-visible .titulo-vivo {
+    font-variation-settings: "wght" 780, "opsz" 24;
+  }
+
+  /* Recorte de papel: borde de tinta y sombra dura desplazada (pseudo-elemento → solo transform) */
+  /* El fondo y el borde van en ::after y la sombra en ::before: con z-index negativo quedan
+     bajo el contenido pero sobre el fondo del propio elemento, así que este debe ser transparente. */
+  .recorte {
+    position: relative;
+    isolation: isolate;
+    min-width: 0;
+    background: transparent;
+    border: 1.5px solid transparent;
+    border-radius: 0.5rem;
+  }
+  .recorte::after,
+  .recorte::before {
+    content: "";
+    position: absolute;
+    inset: -1.5px;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+  .recorte::after {
+    z-index: -1;
+    background: var(--bg-surface);
+    border: 1.5px solid var(--tinta);
+  }
+  .recorte::before {
+    z-index: -2;
+    background: var(--brand-dark);
+    transform: translate(4px, 4px);
+    transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .recorte-hover:hover::before,
+  .recorte-hover:focus-within::before {
+    transform: translate(7px, 7px);
+  }
+
+  /* Botón sólido: borde de tinta y sombra dura corta que se "aprieta" al pulsar */
+  .boton-solido {
+    box-shadow: 2px 2px 0 0 var(--tinta);
+  }
+  .boton-solido:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0 0 var(--tinta);
+  }
+  .boton-solido:active {
+    transform: translate(2px, 2px);
+    box-shadow: 0 0 0 0 var(--tinta);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .boton-solido:hover,
+    .boton-solido:active {
+      transform: none;
+    }
+  }
+
+  /* Trazo a mano bajo los títulos */
+  .trazo {
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .titulo-vivo,
+    .recorte::before {
+      transition: none;
+    }
+  }
+
+  /* Contenido largo (noticias, descripciones) conserva saltos de línea */
+  .prose-text {
+    white-space: pre-line;
+    line-height: 1.75;
+  }
+}

@@ -1,0 +1,296 @@
+"use client";
+
+import { Download, Eye, EyeOff, Mail, MapPin, Phone, Send, Star, Upload } from "lucide-react";
+import { useRef, useState } from "react";
+import { Alert, Avatar, Badge, Button, Card, Checkbox, Modal, Select, Stars, Textarea } from "@/components/ui";
+import { apiFetch, downloadFile, fileUrl } from "@/lib/api";
+import { ESTADO_POSTULACION_TONE, ESTADOS_POSTULACION, MOTIVOS_NO_SELECCION } from "@/lib/constants";
+import { formatDate, formatRut } from "@/lib/format";
+import type { Asistencia, Postulante } from "@/lib/types";
+import { useToast } from "@/providers/ToastProvider";
+
+const ASISTENCIAS: Asistencia[] = ["No aplica", "SI", "No"];
+
+export default function PostulanteCard({ p, onChanged }: { p: Postulante; onChanged: (p: Postulante) => void }) {
+  const toast = useToast();
+  const certRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [estadoModal, setEstadoModal] = useState<string | null>(null);
+  const [motivo, setMotivo] = useState(MOTIVOS_NO_SELECCION[0]);
+  const [motivoOtro, setMotivoOtro] = useState("");
+  const [resenaOpen, setResenaOpen] = useState(false);
+  const [resena, setResena] = useState(p.resena_org);
+  const [calificacion, setCalificacion] = useState<number | null>(p.calificacion_org);
+  const [resenaPublica, setResenaPublica] = useState(p.resena_org_publica);
+  const [horas, setHoras] = useState(String(p.horas_voluntariado || ""));
+
+  async function run(action: () => Promise<Postulante>, okMessage?: string) {
+    setBusy(true);
+    try {
+      onChanged(await action());
+      if (okMessage) toast(okMessage);
+      return true;
+    } catch (e) {
+      toast((e as Error).message, "error");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const setAsistencia = (campo: "asistencia_capacitacion" | "asistencia_actividad", value: Asistencia) =>
+    run(() => apiFetch(`/postulaciones/${p.id}/asistencia`, { method: "PATCH", body: { [campo]: value } }));
+
+  const guardarHoras = () => {
+    const value = Number(horas);
+    if (Number.isNaN(value) || value < 0) return toast("Horas inválidas", "error");
+    run(() => apiFetch(`/postulaciones/${p.id}/asistencia`, { method: "PATCH", body: { horas_voluntariado: value } }), "Horas registradas");
+  };
+
+  const cambiarEstado = () =>
+    run(
+      () =>
+        apiFetch(`/postulaciones/${p.id}/estado`, {
+          method: "PATCH",
+          body: {
+            estado: estadoModal,
+            motivo_no_seleccion: estadoModal === "No seleccionado" ? motivo : null,
+            motivo_no_seleccion_otro: estadoModal === "No seleccionado" && motivo === "Otro" ? motivoOtro : null,
+          },
+        }),
+      "Estado actualizado — se notificó por correo",
+    ).then((ok) => ok && setEstadoModal(null));
+
+  const subirCertificado = async (file: File | undefined) => {
+    if (!file) return;
+    const body = new FormData();
+    body.append("certificado", file);
+    await run(() => apiFetch(`/postulaciones/${p.id}/certificado`, { method: "POST", body }), "Certificado subido");
+    if (certRef.current) certRef.current.value = "";
+  };
+
+  const enviarCertificado = async () => {
+    setBusy(true);
+    try {
+      const res = await apiFetch<{ message: string }>(`/postulaciones/${p.id}/enviar-certificado`, { method: "POST", body: {} });
+      toast(res.message);
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const guardarResena = () =>
+    run(
+      () =>
+        apiFetch(`/postulaciones/${p.id}/resena-org`, {
+          method: "PUT",
+          body: { resena, calificacion, es_publica: resenaPublica },
+        }),
+      "Reseña guardada",
+    ).then((ok) => ok && setResenaOpen(false));
+
+  const toggleVisibilidad = () =>
+    run(
+      () => apiFetch(`/postulaciones/${p.id}/visibilidad-resena`, { method: "PATCH", body: { es_publica: !p.resena_usuario_publica } }),
+      p.resena_usuario_publica ? "Reseña ocultada del perfil público" : "Reseña publicada",
+    );
+
+  const declinada = p.estado === "Declinada por usuario";
+
+  return (
+    <Card className="p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <Avatar name={p.usuario_nombre} src={p.usuario_tiene_foto ? fileUrl.foto(p.usuario_id) : null} size={48} />
+          <div>
+            <p className="font-semibold text-fg">{p.usuario_nombre}</p>
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-fg-muted">
+              <span className="flex items-center gap-1">
+                <Mail className="h-3 w-3" /> {p.usuario_email}
+              </span>
+              {p.usuario_telefono && (
+                <span className="flex items-center gap-1">
+                  <Phone className="h-3 w-3" /> {p.usuario_telefono}
+                </span>
+              )}
+              {(p.usuario_comuna || p.usuario_region) && (
+                <span className="flex items-center gap-1">
+                  <MapPin className="h-3 w-3" /> {[p.usuario_comuna, p.usuario_region].filter(Boolean).join(", ")}
+                </span>
+              )}
+              {p.usuario_rut && <span>RUT {formatRut(p.usuario_rut)}</span>}
+              {p.usuario_edad != null && <span>{p.usuario_edad} años</span>}
+            </div>
+            <p className="mt-0.5 text-xs text-fg-muted">Postuló el {formatDate(p.created_at)}</p>
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1.5">
+          <Badge tone={ESTADO_POSTULACION_TONE[p.estado] ?? "neutral"}>{p.estado}</Badge>
+          {p.estado === "Seleccionado" && (
+            <span className="text-xs text-fg-muted">{p.estado_confirmacion === "Confirmado" ? "✓ Confirmó participación" : p.estado_confirmacion === "No confirmado" ? "No confirmó" : "Sin confirmar"}</span>
+          )}
+        </div>
+      </div>
+
+      {declinada && <Alert className="mt-4">El voluntario retiró su postulación; no puedes cambiar su estado.</Alert>}
+
+      <div className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Select
+          aria-label="Estado"
+          value={p.estado}
+          disabled={busy || declinada}
+          onChange={(e) => {
+            const value = e.target.value;
+            if (value === "No seleccionado") setEstadoModal(value);
+            else
+              run(() => apiFetch(`/postulaciones/${p.id}/estado`, { method: "PATCH", body: { estado: value } }), "Estado actualizado — se notificó por correo");
+          }}
+          options={ESTADOS_POSTULACION as unknown as string[]}
+          className="h-9 text-xs"
+        />
+        <Select
+          aria-label="Asistencia capacitación"
+          value={p.asistencia_capacitacion}
+          disabled={busy}
+          onChange={(e) => setAsistencia("asistencia_capacitacion", e.target.value as Asistencia)}
+          options={ASISTENCIAS.map((a) => ({ value: a, label: `Capacitación: ${a}` }))}
+          className="h-9 text-xs"
+        />
+        <Select
+          aria-label="Asistencia actividad"
+          value={p.asistencia_actividad}
+          disabled={busy}
+          onChange={(e) => setAsistencia("asistencia_actividad", e.target.value as Asistencia)}
+          options={ASISTENCIAS.map((a) => ({ value: a, label: `Actividad: ${a}` }))}
+          className="h-9 text-xs"
+        />
+        <div className="flex gap-2">
+          <input
+            type="number"
+            min={0}
+            aria-label="Horas de voluntariado"
+            value={horas}
+            onChange={(e) => setHoras(e.target.value)}
+            placeholder="Horas"
+            className="h-9 w-full min-w-0 rounded-xl border border-border bg-surface px-3 text-xs text-fg focus:border-brand focus:outline-none"
+          />
+          <Button size="sm" variant="outline" loading={busy} onClick={guardarHoras}>
+            Horas
+          </Button>
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+        <input ref={certRef} type="file" accept="application/pdf" className="hidden" onChange={(e) => subirCertificado(e.target.files?.[0])} />
+        {p.tiene_certificado ? (
+          <>
+            <Button size="sm" variant="secondary" onClick={() => downloadFile(`/postulaciones/${p.id}/certificado`, "certificado_voluntariado.pdf")}>
+              <Download className="h-4 w-4" /> Ver certificado
+            </Button>
+            <Button size="sm" variant="outline" loading={busy} onClick={enviarCertificado}>
+              <Send className="h-4 w-4" /> Enviar por correo
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              loading={busy}
+              onClick={() => run(() => apiFetch(`/postulaciones/${p.id}/certificado`, { method: "DELETE" }), "Certificado eliminado")}
+            >
+              Quitar
+            </Button>
+          </>
+        ) : (
+          <Button size="sm" variant="outline" loading={busy} onClick={() => certRef.current?.click()}>
+            <Upload className="h-4 w-4" /> Subir certificado PDF
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" onClick={() => setResenaOpen(true)}>
+          <Star className="h-4 w-4" /> {p.resena_org || p.calificacion_org != null ? "Editar evaluación" : "Evaluar voluntario"}
+        </Button>
+        {p.resena_usuario && (
+          <Button size="sm" variant="ghost" loading={busy} onClick={toggleVisibilidad}>
+            {p.resena_usuario_publica ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {p.resena_usuario_publica ? "Ocultar reseña" : "Publicar reseña"}
+          </Button>
+        )}
+      </div>
+
+      {(p.resena_usuario || p.resena_org || p.calificacion_org != null) && (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {p.resena_usuario && (
+            <div className="rounded-xl bg-page p-4">
+              <p className="text-xs font-semibold uppercase text-fg-muted">Reseña del voluntario {p.resena_usuario_publica ? "(pública)" : "(oculta)"}</p>
+              <div className="mt-1.5">
+                <Stars value={p.calificacion_usuario} />
+              </div>
+              <p className="mt-1.5 text-sm text-fg-secondary">{p.resena_usuario}</p>
+            </div>
+          )}
+          {(p.resena_org || p.calificacion_org != null) && (
+            <div className="rounded-xl border border-border p-4">
+              <p className="text-xs font-semibold uppercase text-fg-muted">Tu evaluación {p.resena_org_publica ? "(visible para el voluntario)" : "(privada)"}</p>
+              {p.calificacion_org != null && (
+                <div className="mt-1.5">
+                  <Stars value={p.calificacion_org} />
+                </div>
+              )}
+              {p.resena_org && <p className="mt-1.5 text-sm text-fg-secondary">{p.resena_org}</p>}
+            </div>
+          )}
+        </div>
+      )}
+
+      <Modal
+        open={!!estadoModal}
+        onClose={() => setEstadoModal(null)}
+        title="Marcar como no seleccionado"
+        description={`${p.usuario_nombre} recibirá un correo con el motivo.`}
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setEstadoModal(null)}>
+              Cancelar
+            </Button>
+            <Button variant="danger" loading={busy} disabled={motivo === "Otro" && motivoOtro.trim().length < 3} onClick={cambiarEstado}>
+              Confirmar y notificar
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Select aria-label="Motivo" value={motivo} onChange={(e) => setMotivo(e.target.value)} options={MOTIVOS_NO_SELECCION} />
+          {motivo === "Otro" && (
+            <Textarea aria-label="Motivo personalizado" placeholder="Escribe el motivo…" value={motivoOtro} onChange={(e) => setMotivoOtro(e.target.value)} maxLength={2000} />
+          )}
+        </div>
+      </Modal>
+
+      <Modal
+        open={resenaOpen}
+        onClose={() => setResenaOpen(false)}
+        title={`Evaluar a ${p.usuario_nombre}`}
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setResenaOpen(false)}>
+              Cancelar
+            </Button>
+            <Button loading={busy} onClick={guardarResena}>
+              Guardar evaluación
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <p className="mb-2 text-sm font-medium text-fg-secondary">Calificación</p>
+            <Stars value={calificacion} size={26} onChange={setCalificacion} />
+          </div>
+          <Textarea value={resena} onChange={(e) => setResena(e.target.value)} maxLength={2000} placeholder="Comentario sobre su desempeño (opcional)…" />
+          <Checkbox label="Mostrar esta evaluación al voluntario" checked={resenaPublica} onChange={(e) => setResenaPublica(e.target.checked)} />
+        </div>
+      </Modal>
+    </Card>
+  );
+}
