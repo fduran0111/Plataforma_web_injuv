@@ -39,7 +39,7 @@ export function driveLenisWith(tick: ((time: number) => void) | null) {
 export default function SmoothScroll() {
   useEffect(() => {
     if (prefersReducedMotion() || isLowMotionDevice()) return;
-    const lenis = new Lenis({ lerp: 0.12, anchors: true });
+    const lenis = new Lenis({ lerp: 0.2, wheelMultiplier: 1.15, anchors: true });
     instance = lenis;
     driveLenisWith(null);
     listeners.forEach((cb) => cb(lenis));
