@@ -1,6 +1,7 @@
 "use client";
 
 import { Bot, MessageCircle, Send, X } from "lucide-react";
+import * as m from "motion/react-m";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/format";
 
@@ -113,40 +114,56 @@ export default function ChatWidget() {
 
   return (
     <>
-      <button
+      <m.button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-label={open ? "Cerrar asistente" : "Abrir asistente de ayuda"}
         className={cn(
-          "fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-full shadow-xl transition",
-          open ? "bg-slate-700 text-white" : "bg-brand text-white hover:bg-brand-dark",
+          "chat-lanzador fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-full border-[1.5px] border-tinta shadow-[0_8px_24px_-8px_rgb(15_27_45/0.45)] transition-colors duration-200",
+          open ? "bg-tinta text-papel" : "bg-brand text-white hover:bg-brand-dark",
         )}
+        initial={{ opacity: 0, y: 16, scale: 0.92 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ type: "spring", bounce: 0.2, delay: 1.2 }}
       >
-        {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
-      </button>
+        <span aria-hidden className="relative h-6 w-6">
+          <MessageCircle
+            className={cn(
+              "absolute inset-0 h-6 w-6 transition-[opacity,transform] duration-200",
+              open ? "-rotate-90 opacity-0" : "rotate-0 opacity-100",
+            )}
+          />
+          <X
+            className={cn(
+              "absolute inset-0 h-6 w-6 transition-[opacity,transform] duration-200",
+              open ? "rotate-0 opacity-100" : "rotate-90 opacity-0",
+            )}
+          />
+        </span>
+      </m.button>
 
       {open && (
-        <div className="fixed bottom-24 right-5 z-50 flex h-[480px] w-[calc(100vw-2.5rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
-          <div className="flex items-center gap-3 bg-brand px-4 py-3 text-white">
-            <div className="rounded-full bg-white/15 p-2">
+        <div className="chat-panel fixed bottom-24 right-5 z-50 flex h-[480px] w-[calc(100vw-2.5rem)] max-w-sm flex-col overflow-hidden rounded-lg border-[1.5px] border-tinta bg-surface shadow-[0_18px_40px_-16px_rgb(15_27_45/0.45)]">
+          <div className="flex items-center gap-3 bg-tinta px-4 py-3 text-papel">
+            <div className="rounded-md bg-papel/10 p-2">
               <Bot className="h-5 w-5" />
             </div>
             <div>
               <p className="text-sm font-semibold">Asistente INJUV</p>
-              <p className="text-xs text-white/75">Preguntas frecuentes sobre voluntariado</p>
+              <p className="text-xs text-papel/75">Preguntas frecuentes sobre voluntariado</p>
             </div>
           </div>
 
           <div className="flex-1 space-y-3 overflow-y-auto p-4">
-            {msgs.map((m, i) => (
-              <div key={i} className={cn("flex", m.from === "user" ? "justify-end" : "justify-start")}>
+            {msgs.map((msg, i) => (
+              <div key={i} className={cn("flex", msg.from === "user" ? "justify-end" : "justify-start")}>
                 <div
                   className={cn(
-                    "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed",
-                    m.from === "user" ? "rounded-br-sm bg-brand text-white" : "rounded-bl-sm bg-page text-fg",
+                    "burbuja max-w-[85%] px-3.5 py-2.5 text-sm leading-relaxed",
+                    msg.from === "user" ? "rounded-lg rounded-br-sm bg-brand text-white" : "rounded-lg rounded-bl-sm bg-papel-strong text-fg",
                   )}
                 >
-                  {m.text}
+                  {msg.text}
                 </div>
               </div>
             ))}
@@ -154,13 +171,13 @@ export default function ChatWidget() {
           </div>
 
           {msgs.length <= 2 && (
-            <div className="flex flex-wrap gap-1.5 border-t border-border px-3 py-2.5">
+            <div className="flex flex-wrap gap-1.5 border-t border-tinta/15 px-3 py-2.5">
               {QUICK.map((q) => (
                 <button
                   key={q}
                   type="button"
                   onClick={() => send(q)}
-                  className="rounded-full border border-border bg-white px-2.5 py-1 text-xs text-fg-secondary transition hover:border-brand hover:text-brand"
+                  className="rounded-md border-[1.5px] border-tinta/30 bg-surface px-2.5 py-1 text-xs text-fg-secondary transition-colors hover:border-tinta hover:bg-papel"
                 >
                   {q}
                 </button>
@@ -173,15 +190,15 @@ export default function ChatWidget() {
               e.preventDefault();
               send(input);
             }}
-            className="flex items-center gap-2 border-t border-border p-3"
+            className="flex items-center gap-2 border-t border-tinta/15 p-3"
           >
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Escribe tu pregunta…"
-              className="h-10 w-full rounded-xl border border-border bg-surface px-3.5 text-sm text-fg placeholder:text-fg-muted focus:border-brand focus:outline-none"
+              className="h-10 w-full rounded-md border-[1.5px] border-tinta/35 bg-surface px-3.5 text-sm text-fg placeholder:text-fg-muted transition-[border-color,box-shadow] focus:border-tinta focus:outline-none focus:shadow-[inset_0_0_0_1px_var(--tinta)]"
             />
-            <button type="submit" aria-label="Enviar" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand text-white hover:bg-brand-dark">
+            <button type="submit" aria-label="Enviar" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-[1.5px] border-tinta bg-brand text-white hover:bg-brand-dark">
               <Send className="h-4 w-4" />
             </button>
           </form>
