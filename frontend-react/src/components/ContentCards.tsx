@@ -8,25 +8,34 @@ import type { Documento, Noticia, ResenaPublica } from "@/lib/types";
 
 export function NoticiaCard({ n }: { n: Noticia }) {
   return (
-    <Recorte id={`noticia-${n.id}`} className="group flex h-full">
-      <Link href={`/noticias/${n.id}`} className="flex flex-1 flex-col overflow-hidden rounded-[inherit] focus-visible:outline-none">
-        <div className="relative aspect-[16/9] overflow-hidden border-b-[1.5px] border-tinta bg-papel-strong">
+    <div
+      id={`noticia-${n.id}`}
+      className="group relative flex h-full flex-col overflow-clip rounded-2xl bg-surface ring-1 ring-tinta/10 transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] focus-within:ring-2 focus-within:ring-brand hover:-translate-y-1.5 hover:shadow-[0_24px_48px_-24px_rgb(15_27_45/0.35)]"
+    >
+      <Link href={`/noticias/${n.id}`} className="flex flex-1 flex-col focus-visible:outline-none">
+        <div className="persiana relative aspect-[16/9] overflow-clip bg-papel-strong">
           {n.imagen ? (
             // eslint-disable-next-line @next/next/no-img-element -- imagen servida por la API
-            <img src={fileUrl.noticia(n.imagen)} alt="" className="h-full w-full object-cover" />
+            <img
+              src={fileUrl.noticia(n.imagen)}
+              alt=""
+              className="persiana-zoom h-full w-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:scale-[1.04]"
+            />
           ) : (
-            <div className="flex h-full items-center justify-center text-tinta/30">
+            <div className="persiana-zoom flex h-full items-center justify-center text-tinta/30">
               <Newspaper className="h-12 w-12" />
             </div>
           )}
         </div>
         <div className="flex flex-1 flex-col p-5">
-          <p className="text-xs font-medium text-fg-muted tabular-nums">{formatDate(n.fecha_publicacion)}</p>
-          <h3 className="titulo-vivo mt-2 line-clamp-2 text-h3 text-fg">{n.titulo}</h3>
+          <p className="inline-flex w-fit items-center rounded-full bg-papel px-2.5 py-1 text-xs font-medium text-fg-muted tabular-nums">
+            {formatDate(n.fecha_publicacion)}
+          </p>
+          <h3 className="mt-2 line-clamp-2 text-h3 text-fg transition-colors duration-200 group-hover:text-brand">{n.titulo}</h3>
           <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-fg-muted">{n.resumen || n.contenido}</p>
         </div>
       </Link>
-    </Recorte>
+    </div>
   );
 }
 
@@ -66,13 +75,18 @@ export function DocumentoCard({ doc }: { doc: Documento }) {
 
 export function ResenaCard({ r }: { r: ResenaPublica }) {
   return (
-    <Recorte id={`resena-${r.postulacion_id}`} interactive={false} className="flex h-full flex-col p-6">
+    <div id={`resena-${r.postulacion_id}`} className="flex h-full flex-col rounded-2xl bg-surface p-6 ring-1 ring-tinta/10">
       <figure className="flex flex-1 flex-col">
-        <Stars value={r.calificacion} />
+        <div className="flex items-center justify-between gap-3">
+          <Stars value={r.calificacion} />
+          <span aria-hidden className="font-display text-4xl leading-none text-ambar">
+            “
+          </span>
+        </div>
         <blockquote className="mt-3 flex-1 font-display text-lg leading-snug text-fg [font-variation-settings:'wght'_480,'opsz'_18]">
           “{r.resena}”
         </blockquote>
-        <figcaption className="mt-5 flex items-center gap-3 border-t-[1.5px] border-dashed border-tinta/25 pt-4">
+        <figcaption className="mt-5 flex items-center gap-3 border-t border-tinta/15 pt-4">
           <Avatar name={r.usuario_nombre} src={r.usuario_tiene_foto ? fileUrl.foto(r.usuario_id) : null} size={36} />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-fg">{r.usuario_nombre}</p>
@@ -82,6 +96,6 @@ export function ResenaCard({ r }: { r: ResenaPublica }) {
           </div>
         </figcaption>
       </figure>
-    </Recorte>
+    </div>
   );
 }

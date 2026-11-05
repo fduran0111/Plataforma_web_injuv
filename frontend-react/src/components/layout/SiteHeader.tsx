@@ -4,7 +4,7 @@ import { Menu, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import UserMenu from "@/components/layout/UserMenu";
 import { NAV_LINKS } from "@/components/layout/nav";
 import { LinkButton } from "@/components/ui";
@@ -16,13 +16,44 @@ export default function SiteHeader() {
   const pathname = usePathname();
   const { user, loading } = useAuth();
   const [open, setOpen] = useState(false);
+  const [oculta, setOculta] = useState(false);
+  const [elevada, setElevada] = useState(false);
+  const focusRef = useRef(false);
+
+  // Ocultar al bajar / mostrar al subir: nunca con el menú abierto, arriba (<80px) o con foco dentro.
+  useEffect(() => {
+    let lastY = window.scrollY;
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y = window.scrollY;
+        setElevada(y > 8);
+        if (!open && !focusRef.current && y > 80 && y > lastY + 4) setOculta(true);
+        else if (y < lastY - 4 || y <= 80) setOculta(false);
+        lastY = y;
+        ticking = false;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [open]);
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
   return (
-    <header className="sticky top-0 z-40 border-b-[1.5px] border-tinta bg-papel">
+    <header
+      className={cn(
+        "sticky top-0 z-40 border-b-[1.5px] border-tinta bg-papel transition-transform duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]",
+        oculta && !open ? "-translate-y-full" : "translate-y-0",
+        elevada && "shadow-[0_10px_30px_-18px_rgb(15_27_45/0.45)]",
+      )}
+      onFocusCapture={() => (focusRef.current = true)}
+      onBlurCapture={() => (focusRef.current = false)}
+    >
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex shrink-0 items-center gap-3" onClick={() => setOpen(false)}>
+        <Link href="/" className="flex shrink-0 items-center gap-3 transition-transform duration-200 hover:scale-[1.02]" onClick={() => setOpen(false)}>
           <Image src={logo} alt="INJUV" height={40} priority className="h-10 w-auto" />
           <span className="hidden border-l-[1.5px] border-tinta/30 pl-3 font-display text-sm leading-tight text-fg xl:block">
             Voluntariado
@@ -49,7 +80,7 @@ export default function SiteHeader() {
                 <span
                   aria-hidden
                   className={cn(
-                    "absolute inset-x-3 -bottom-px h-[3px] origin-left rounded-full transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+                    "absolute inset-x-3 -bottom-px h-[3px] origin-left rounded-full transition-transform duration-200 ease-[var(--ease-out)]",
                     active ? "scale-x-100 bg-ambar" : "scale-x-0 bg-tinta group-hover:scale-x-100",
                   )}
                 />
@@ -85,14 +116,14 @@ export default function SiteHeader() {
       </div>
 
       {open && (
-        <nav className="border-t-[1.5px] border-dashed border-tinta/30 bg-papel px-4 py-3 lg:hidden" aria-label="Principal móvil">
+        <nav className="menu-movil border-t-[1.5px] border-dashed border-tinta/30 bg-papel px-4 py-3 lg:hidden" aria-label="Principal móvil">
           {NAV_LINKS.map((l) => (
             <Link
               key={l.href}
               href={l.href}
               onClick={() => setOpen(false)}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium",
+                "flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium",
                 isActive(l.href) ? "text-tinta" : "text-fg-secondary",
               )}
             >
@@ -101,7 +132,7 @@ export default function SiteHeader() {
             </Link>
           ))}
           {!user && (
-            <Link href="/login" onClick={() => setOpen(false)} className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-fg-secondary sm:hidden">
+            <Link href="/login" onClick={() => setOpen(false)} className="flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium text-fg-secondary sm:hidden">
               <span className="h-[3px] w-4 rounded-full bg-tinta/20" aria-hidden />
               Iniciar sesión
             </Link>

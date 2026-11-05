@@ -20,6 +20,8 @@
   --text-primary: var(--tinta);
   --text-secondary: #33405a;
   --text-muted: #65708a;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 @theme inline {
@@ -61,6 +63,17 @@
 }
 
 @layer base {
+  ::selection {
+    background: var(--ambar);
+    color: var(--tinta);
+  }
+
+  html {
+    scrollbar-color: color-mix(in srgb, var(--tinta) 45%, transparent) var(--papel);
+    caret-color: var(--brand-primary);
+    accent-color: var(--brand-primary);
+  }
+
   body {
     background-color: var(--bg-page);
     /* Grano de papel: ruido fractal inline, opacidad máx. 0.06 */
@@ -165,5 +178,402 @@
   .prose-text {
     white-space: pre-line;
     line-height: 1.75;
+  }
+
+  /* Titular enmascarado: cada línea sube desde detrás de su caja */
+  .linea {
+    display: block;
+    overflow: hidden;
+    padding-bottom: 0.08em;
+    margin-bottom: -0.08em;
+  }
+  .linea > span {
+    display: inline-block;
+    animation: linea-sube 900ms var(--ease-out) both;
+  }
+  .linea:nth-child(2) > span {
+    animation-delay: 110ms;
+  }
+  @keyframes linea-sube {
+    from {
+      transform: translateY(105%);
+    }
+  }
+
+  /* El standfirst y el buscador aparecen justo después del titular */
+  .hero-sigue {
+    animation: aparece 600ms var(--ease-out) 380ms both;
+  }
+  @keyframes aparece {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+  }
+
+  /* Hero: crossfade lento de las 5 fotos en ciclo de 30 s (6 s por foto).
+     La 1ª es la base (siempre visible, quieta); las demás se funden encima y cada una
+     se mantiene hasta que la siguiente la cubre por completo, sin dejar ver la base entre medio.
+     La última se funde hacia la base para cerrar el ciclo. */
+  .foto-ciclo { opacity: 0; animation: ciclo 30s linear infinite; }
+  .foto-ciclo:first-child { opacity: 1; animation: none; }
+  .foto-ciclo:nth-child(2) { animation-delay: 6s; }
+  .foto-ciclo:nth-child(3) { animation-delay: 12s; }
+  .foto-ciclo:nth-child(4) { animation-delay: 18s; }
+  .foto-ciclo:nth-child(5) { animation-delay: 24s; animation-name: ciclo-ultima; }
+  @keyframes ciclo {
+    0% { opacity: 0; }
+    5% { opacity: 1; }
+    25% { opacity: 1; }
+    25.1%, 100% { opacity: 0; }
+  }
+  @keyframes ciclo-ultima {
+    0% { opacity: 0; }
+    5% { opacity: 1; }
+    20% { opacity: 1; }
+    25%, 100% { opacity: 0; }
+  }
+  .kb { animation: kb 30s linear infinite; }
+  .foto-ciclo:first-child .kb { animation: none; }
+  .foto-ciclo:nth-child(2) .kb { animation-delay: 6s; }
+  .foto-ciclo:nth-child(3) .kb { animation-delay: 12s; }
+  .foto-ciclo:nth-child(4) .kb { animation-delay: 18s; }
+  .foto-ciclo:nth-child(5) .kb { animation-delay: 24s; }
+  @keyframes kb {
+    0% { transform: scale(1.08); }
+    20%, 100% { transform: scale(1); }
+  }
+
+  /* Carrusel de fotos (GaleriaFotos): la foto --i queda centrada; se asoman sus vecinas */
+  .galeria-pista {
+    --w: 80vw;
+    --gap: 0.75rem;
+    gap: var(--gap);
+    transform: translateX(calc(var(--w) / -2 - var(--i) * (var(--w) + var(--gap))));
+  }
+  .galeria-foto { width: var(--w); }
+  .galeria-anima { transition: transform 700ms var(--ease-in-out, cubic-bezier(0.77, 0, 0.175, 1)); }
+  @media (min-width: 40rem) {
+    .galeria-pista { --w: 66vw; --gap: 1.25rem; }
+  }
+  @media (min-width: 64rem) {
+    .galeria-pista { --w: min(56vw, 880px); --gap: 1.5rem; }
+  }
+  .galeria-progreso { animation: galeria-progreso 10000ms linear both; }
+  @keyframes galeria-progreso {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .galeria-anima { transition: none; }
+  }
+
+  /* Persiana de imagen (NoticiaCard): se abre al entrar en vista */
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      .persiana {
+        animation: persiana linear both;
+        animation-timeline: view();
+        animation-range: entry 10% entry 55%;
+      }
+      .persiana-zoom {
+        animation: persiana-zoom linear both;
+        animation-timeline: view();
+        animation-range: entry 10% entry 55%;
+      }
+    }
+  }
+  @keyframes persiana {
+    from { clip-path: inset(0 0 100% 0); }
+    to { clip-path: inset(0); }
+  }
+  @keyframes persiana-zoom {
+    from { transform: scale(1.12); }
+    to { transform: scale(1); }
+  }
+
+  /* Entradas solo al montar (menú móvil y panel de chat) */
+  .menu-movil {
+    transition:
+      opacity 180ms var(--ease-out),
+      transform 180ms var(--ease-out);
+  }
+  @starting-style {
+    .menu-movil {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+  }
+
+  .chat-panel {
+    transform-origin: bottom right;
+    transition:
+      opacity 200ms var(--ease-out),
+      transform 200ms var(--ease-out);
+  }
+  @starting-style {
+    .chat-panel {
+      opacity: 0;
+      transform: translateY(8px) scale(0.97);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .linea > span {
+      animation: none;
+    }
+    .hero-sigue {
+      animation: solo-opacidad 300ms ease both;
+    }
+    .foto-ciclo,
+    .kb {
+      animation: none !important;
+    }
+    .burbuja {
+      animation: solo-opacidad 300ms ease both;
+    }
+    .chat-lanzador::after {
+      animation: none;
+    }
+    .menu-movil,
+    .chat-panel {
+      transition-property: opacity;
+    }
+    @starting-style {
+      .menu-movil,
+      .chat-panel {
+        transform: none;
+      }
+    }
+  }
+  @keyframes solo-opacidad {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+/* Tarjetas de área (AreaTile): la copia azul se revela con un círculo que nace en el
+   punto de entrada del puntero (--x/--y) y se retira por el punto de salida.
+   Con teclado (sin --x/--y) crece desde el centro. */
+.area-tile-copia {
+  clip-path: circle(0% at var(--x, 50%) var(--y, 50%));
+  transition: clip-path 450ms var(--ease-out);
+}
+.area-tile:focus-visible .area-tile-copia {
+  clip-path: circle(150% at var(--x, 50%) var(--y, 50%));
+}
+.area-marca {
+  transform: translate(22%, 22%) rotate(-16deg) scale(0.9);
+  transition: transform 650ms var(--ease-out);
+}
+.area-tile:focus-visible .area-marca {
+  transform: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .area-tile:hover .area-marca {
+    transform: none;
+  }
+  .area-tile:hover .area-tile-copia {
+    clip-path: circle(150% at var(--x, 50%) var(--y, 50%));
+  }
+  .area-tile:hover {
+    box-shadow: 0 16px 32px -18px rgb(0 82 204 / 0.65);
+  }
+}
+
+/* RecursoCard: ícono gigante de marca de agua que entra girando desde la esquina,
+   y subrayado del texto de acción que se dibuja de izquierda a derecha. */
+.recurso-marca {
+  transform: translate(25%, 25%) rotate(-18deg) scale(0.9);
+  transition:
+    transform 600ms var(--ease-out),
+    opacity 300ms ease;
+}
+.recurso-subrayado {
+  transform: scaleX(0);
+  transition: transform 300ms var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .group:hover .recurso-marca {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+    opacity: 0.2;
+  }
+  .group:hover .recurso-subrayado {
+    transform: scaleX(1);
+  }
+}
+.group:focus-visible .recurso-marca {
+  transform: translate(0, 0) rotate(0deg) scale(1);
+}
+.group:focus-visible .recurso-subrayado {
+  transform: scaleX(1);
+}
+
+/* Flecha de RecursoCard: al hover una sale por la derecha y otra entra desde la izquierda. */
+.flecha-sale,
+.flecha-entra {
+  transition: transform 300ms var(--ease-out);
+}
+.flecha-entra {
+  transform: translateX(-200%);
+}
+@media (hover: hover) and (pointer: fine) {
+  .group:hover .flecha-sale {
+    transform: translateX(200%);
+  }
+  .group:hover .flecha-entra {
+    transform: translateX(0);
+    transition-delay: 60ms;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .area-tile-copia {
+    clip-path: none;
+    opacity: 0;
+    transition: opacity 200ms ease;
+  }
+  .area-tile:hover .area-tile-copia,
+  .area-tile:focus-visible .area-tile-copia {
+    clip-path: none;
+    opacity: 1;
+  }
+  .flecha-sale,
+  .flecha-entra,
+  .area-marca,
+  .recurso-marca,
+  .recurso-subrayado {
+    transition: none;
+  }
+}
+
+/* Selectores del buscador de la portada (Región / Área).
+   Fuera de capas para ganar a las utilidades del control base.
+   Navegadores con `appearance: base-select` (Chrome/Edge 135+) muestran una lista propia
+   con la paleta del sitio; el resto conserva el selector nativo del sistema. */
+.select-vivo {
+  height: 3rem;
+  border: 0;
+  border-radius: 12px;
+  background-color: var(--bg-surface);
+  padding-inline: 1rem 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--tinta);
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgb(15 27 45 / 0.12);
+  transition:
+    box-shadow 160ms var(--ease-out),
+    background-color 160ms ease;
+}
+.select-vivo:hover {
+  background-color: #fff;
+  box-shadow: inset 0 0 0 1px rgb(15 27 45 / 0.28);
+}
+.select-vivo:focus,
+.select-vivo:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--brand-primary);
+}
+
+@supports (appearance: base-select) {
+  .select-vivo,
+  .select-vivo::picker(select) {
+    appearance: base-select;
+  }
+  .select-vivo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .select-vivo::picker-icon {
+    content: "";
+    width: 1rem;
+    height: 1rem;
+    background-color: currentColor;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+    color: var(--text-muted);
+    transition: rotate 200ms var(--ease-out);
+  }
+  .select-vivo:open {
+    background-color: #fff;
+    box-shadow: inset 0 0 0 2px var(--brand-primary);
+  }
+  .select-vivo:open::picker-icon {
+    rotate: 180deg;
+    color: var(--brand-primary);
+  }
+
+  .select-vivo::picker(select) {
+    margin-block: 0.5rem;
+    padding: 0.375rem;
+    max-height: min(22rem, 55vh);
+    overflow-y: auto;
+    border: 0;
+    border-radius: 16px;
+    background: var(--bg-surface);
+    box-shadow:
+      0 24px 48px -16px rgb(15 27 45 / 0.35),
+      0 2px 6px rgb(15 27 45 / 0.08);
+    scrollbar-width: thin;
+    scrollbar-color: rgb(15 27 45 / 0.25) transparent;
+    transform-origin: top center;
+    transition:
+      opacity 180ms var(--ease-out),
+      transform 180ms var(--ease-out),
+      overlay 180ms allow-discrete,
+      display 180ms allow-discrete;
+  }
+  .select-vivo:not(:open)::picker(select) {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  @starting-style {
+    .select-vivo:open::picker(select) {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.98);
+    }
+  }
+
+  .select-vivo option {
+    padding: 0.625rem 0.75rem;
+    border-radius: 10px;
+    font-size: 0.9375rem;
+    color: var(--tinta);
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+  .select-vivo option::checkmark {
+    display: none;
+  }
+  .select-vivo option:hover,
+  .select-vivo option:focus-visible {
+    outline: none;
+    background: var(--brand-soft);
+    color: var(--brand-dark);
+  }
+  .select-vivo option:checked {
+    background: var(--brand-primary);
+    color: #fff;
+    font-weight: 600;
+  }
+  .select-vivo option:first-child:not(:checked) {
+    color: var(--text-muted);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .select-vivo::picker(select) {
+    transition: opacity 120ms ease;
+  }
+  .select-vivo:not(:open)::picker(select) {
+    transform: none;
+  }
+  @starting-style {
+    .select-vivo:open::picker(select) {
+      transform: none;
+    }
   }
 }
