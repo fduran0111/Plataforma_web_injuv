@@ -4,6 +4,7 @@ import { FileText, MapPin, Search, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Badge, Button, Card, ConfirmModal, EmptyState, ErrorState, Input, PageHeader, Select, Spinner } from "@/components/ui";
+import FilasAnimadas from "@/components/admin/FilasAnimadas";
 import { useApi } from "@/hooks/useApi";
 import { apiFetch } from "@/lib/api";
 import { formatDate } from "@/lib/format";
@@ -52,9 +53,11 @@ export default function AdminOportunidadesPage() {
       {error && <ErrorState message={error} onRetry={reload} />}
       {loading && !data && <Spinner />}
       {data && !lista.length && <EmptyState icon={FileText} title="Sin resultados" />}
-      <div className="space-y-3">
+      {!!lista.length && (
+      <Card className="overflow-hidden">
+      <FilasAnimadas>
         {lista.map((op) => (
-          <Card key={op.id} className="flex flex-wrap items-center justify-between gap-4 p-4">
+          <li key={op.id} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-tinta/[0.025]">
             <div className="min-w-0">
               <Link href={`/oportunidades/${op.id}`} className="font-semibold text-fg hover:text-brand">
                 {op.titulo}
@@ -74,13 +77,15 @@ export default function AdminOportunidadesPage() {
             </div>
             <div className="flex items-center gap-2">
               <Badge tone={op.estado === "cerrada" ? "slate" : "green"}>{op.estado === "cerrada" ? "Cerrada" : "Abierta"}</Badge>
-              <Button size="sm" variant="ghost" className="text-red-600" onClick={() => setDeleting(op)}>
+              <Button size="sm" variant="ghost" className="text-red-600" onClick={() => setDeleting(op)} aria-label={`Eliminar ${op.titulo}`}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
-          </Card>
+          </li>
         ))}
-      </div>
+      </FilasAnimadas>
+      </Card>
+      )}
       <ConfirmModal
         open={!!deleting}
         onClose={() => setDeleting(null)}
