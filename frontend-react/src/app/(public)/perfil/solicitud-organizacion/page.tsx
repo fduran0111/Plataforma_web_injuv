@@ -6,10 +6,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Entrada from "@/components/public/Entrada";
 import RequireAuth from "@/components/RequireAuth";
-import { Alert, Badge, Button, Card, EmptyState, ErrorState, Field, Input, Select, Spinner, Textarea } from "@/components/ui";
+import { Alert, Badge, Button, Card, EmptyState, ErrorState, Field, Input, Spinner, Textarea } from "@/components/ui";
+import UbicacionFields from "@/components/UbicacionFields";
 import { useApi } from "@/hooks/useApi";
 import { apiFetch } from "@/lib/api";
-import { REGIONES } from "@/lib/constants";
 import { formatDate, formatRut } from "@/lib/format";
 import type { Solicitud, Usuario } from "@/lib/types";
 import { useToast } from "@/providers/ToastProvider";
@@ -143,15 +143,13 @@ function FormularioSolicitud({ onCreated }: { onCreated: () => void }) {
             </SeccionForm>
 
             <SeccionForm titulo="Dónde están">
-              <Field label="Región" required>
-                {(id) => <Select id={id} required value={form.region} onChange={set("region")} options={REGIONES} placeholder="Selecciona" />}
-              </Field>
-              <Field label="Ciudad" required>
-                {(id) => <Input id={id} required value={form.ciudad} onChange={set("ciudad")} placeholder="Ej: Santiago" />}
-              </Field>
-              <Field label="Comuna" required className="sm:col-span-2 sm:max-w-[calc(50%-0.5rem)]">
-                {(id) => <Input id={id} required value={form.comuna} onChange={set("comuna")} placeholder="Ej: Providencia" />}
-              </Field>
+              <UbicacionFields
+                region={form.region}
+                ciudad={form.ciudad}
+                comuna={form.comuna}
+                onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+                required
+              />
             </SeccionForm>
 
             <SeccionForm titulo="Qué hacen y dónde encontrarlos">

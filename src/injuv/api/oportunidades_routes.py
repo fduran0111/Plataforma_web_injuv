@@ -5,14 +5,14 @@ from datetime import date, datetime
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select, update
 
 from injuv.api.deps import CurrentUser, DbSession, OptionalUser, OwnOrganization
 from injuv.db.models import Oportunidad, Organizacion, Postulacion, Usuario
-from injuv.schemas.oportunidades import CorreoMasivoBody, EstadoOportunidadBody, OportunidadBody
+from injuv.schemas.oportunidades import CorreoMasivoBody, EstadoOportunidadBody, FechasBody, OportunidadBody
 from injuv.security.rbac import is_admin, normalize_role
 from injuv.services import mailer, serializers
-from injuv.services.catalogo import ESTADOS_OPORTUNIDAD_ABIERTOS
+from injuv.services.catalogo import ESTADO_DECLINADA, ESTADOS_OPORTUNIDAD_ABIERTOS
 
 router = APIRouter(prefix="/oportunidades", tags=["Oportunidades"])
 
@@ -25,6 +25,34 @@ def _count_subquery():
         .group_by(Postulacion.oportunidad_id)
         .subquery()
     )
+
+
+def _motivo_cierre(op: Oportunidad, total: int) -> str | None:
+    """Por qué una convocatoria ya no debería recibir postulaciones (None si puede seguir abierta)."""
+    if op.fecha_limite_postulacion and op.fecha_limite_postulacion < date.today():
+        return "La fecha límite de postulación ya pasó"
+    if op.meta_postulantes and total >= op.meta_postulantes:
+        return "Se alcanzó la meta de postulaciones"
+    return None
+
+
+def cerrar_convocatorias_vencidas(db: DbSession) -> None:
+    """Cierra las convocatorias abiertas cuya fecha límite pasó o que alcanzaron su meta de postulantes."""
+    counts = _count_subquery()
+    ids = db.scalars(
+        select(Oportunidad.id)
+        .outerjoin(counts, counts.c.oportunidad_id == Oportunidad.id)
+        .where(
+            Oportunidad.estado.in_(ESTADOS_OPORTUNIDAD_ABIERTOS),
+            or_(
+                Oportunidad.fecha_limite_postulacion < date.today(),
+                and_(Oportunidad.meta_postulantes > 0, func.coalesce(counts.c.n, 0) >= Oportunidad.meta_postulantes),
+            ),
+        )
+    ).all()
+    if ids:
+        db.execute(update(Oportunidad).where(Oportunidad.id.in_(ids)).values(estado="cerrada"))
+        db.commit()
 
 
 def get_oportunidad_or_404(db: DbSession, oportunidad_id: int) -> Oportunidad:
@@ -63,6 +91,7 @@ def listar(
     organizacion_id: int | None = None,
     limit: int = Query(200, ge=1, le=500),
 ) -> list[dict[str, Any]]:
+    cerrar_convocatorias_vencidas(db)
     counts = _count_subquery()
     stmt = (
         select(Oportunidad, Organizacion, func.coalesce(counts.c.n, 0))
@@ -93,6 +122,7 @@ def listar_de_mi_organizacion(db: DbSession, org: OwnOrganization) -> list[dict[
 
 @router.get("/{oportunidad_id}")
 def obtener(oportunidad_id: int, db: DbSession, user: OptionalUser) -> dict[str, Any]:
+    cerrar_convocatorias_vencidas(db)
     op = get_oportunidad_or_404(db, oportunidad_id)
     data = _serialize(db, op)
     data["mi_postulacion"] = None
@@ -105,8 +135,23 @@ def obtener(oportunidad_id: int, db: DbSession, user: OptionalUser) -> dict[str,
     return data
 
 
+_CAMPOS_FECHA = {
+    "fecha_limite_postulacion": "Cierre de postulaciones",
+    "fecha_inicio_voluntariado": "Inicio del voluntariado",
+    "fecha_fin_voluntariado": "Término del voluntariado",
+}
+
+
+def _no_en_el_pasado(valores: dict[str, date | None]) -> None:
+    hoy = date.today()
+    for campo, valor in valores.items():
+        if valor and valor < hoy:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"{_CAMPOS_FECHA[campo]}: la fecha no puede quedar en el pasado")
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 def crear(body: OportunidadBody, db: DbSession, org: OwnOrganization) -> dict[str, Any]:
+    _no_en_el_pasado({c: getattr(body, c) for c in _CAMPOS_FECHA})
     op = Oportunidad(organizacion_id=org.id, estado="activa", created_at=datetime.now())
     _apply_body(op, body)
     db.add(op)
@@ -116,11 +161,61 @@ def crear(body: OportunidadBody, db: DbSession, org: OwnOrganization) -> dict[st
 
 
 @router.put("/{oportunidad_id}")
-def actualizar(oportunidad_id: int, body: OportunidadBody, db: DbSession, user: CurrentUser) -> dict[str, Any]:
+def actualizar(
+    oportunidad_id: int, body: OportunidadBody, db: DbSession, user: CurrentUser, background: BackgroundTasks
+) -> dict[str, Any]:
     op = get_oportunidad_or_404(db, oportunidad_id)
     ensure_can_manage(db, op, user)
+    cambios = _cambios_de_fecha(op, {c: getattr(body, c) for c in _CAMPOS_FECHA})
+    _no_en_el_pasado({c: nuevo for c, (_, nuevo) in cambios.items()})
     _apply_body(op, body)
     db.commit()
+    _avisar_cambio_fechas(db, op, cambios, None, background)
+    return _serialize(db, op)
+
+
+def _cambios_de_fecha(op: Oportunidad, nuevas: dict[str, date | None]) -> dict[str, tuple[date | None, date | None]]:
+    return {c: (getattr(op, c), v) for c, v in nuevas.items() if getattr(op, c) != v}
+
+
+def _avisar_cambio_fechas(
+    db: DbSession,
+    op: Oportunidad,
+    cambios: dict[str, tuple[date | None, date | None]],
+    motivo: str | None,
+    background: BackgroundTasks,
+) -> None:
+    """Avisa por correo a quienes siguen en proceso (no a no seleccionados ni a quienes se retiraron)."""
+    if not cambios:
+        return
+    detalle = [(_CAMPOS_FECHA[c], antes, despues) for c, (antes, despues) in cambios.items()]
+    rows = db.execute(
+        select(Usuario.email, Usuario.nombre)
+        .join(Postulacion, Postulacion.usuario_id == Usuario.id)
+        .where(
+            Postulacion.oportunidad_id == op.id,
+            Postulacion.estado.not_in(("No seleccionado", ESTADO_DECLINADA)),
+        )
+    ).all()
+    for email, nombre in rows:
+        background.add_task(mailer.notify_cambio_fechas, email, nombre or "", op.titulo, detalle, motivo)
+
+
+@router.patch("/{oportunidad_id}/fechas")
+def cambiar_fechas(
+    oportunidad_id: int, body: FechasBody, db: DbSession, user: CurrentUser, background: BackgroundTasks
+) -> dict[str, Any]:
+    """Modificar o aplazar el cierre de postulaciones y el período del voluntariado."""
+    op = get_oportunidad_or_404(db, oportunidad_id)
+    ensure_can_manage(db, op, user)
+    cambios = _cambios_de_fecha(op, {c: getattr(body, c) for c in _CAMPOS_FECHA})
+    if not cambios:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No cambiaste ninguna fecha")
+    _no_en_el_pasado({c: nuevo for c, (_, nuevo) in cambios.items()})
+    for campo, (_, nuevo) in cambios.items():
+        setattr(op, campo, nuevo)
+    db.commit()
+    _avisar_cambio_fechas(db, op, cambios, body.motivo, background)
     return _serialize(db, op)
 
 
@@ -134,6 +229,13 @@ def cambiar_estado(
 ) -> dict[str, Any]:
     op = get_oportunidad_or_404(db, oportunidad_id)
     ensure_can_manage(db, op, user)
+    if body.estado != "cerrada":
+        total = db.scalar(select(func.count(Postulacion.id)).where(Postulacion.oportunidad_id == op.id)) or 0
+        if motivo := _motivo_cierre(op, total):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"No se puede reabrir: {motivo.lower()}. Edita la fecha límite o la meta primero.",
+            )
     anterior, op.estado = op.estado, body.estado
     db.commit()
     if body.estado == "cerrada" and anterior != "cerrada":
@@ -169,7 +271,7 @@ def postulantes(oportunidad_id: int, db: DbSession, user: CurrentUser, estado: s
     )
     if estado:
         stmt = stmt.where(Postulacion.estado == estado)
-    return [serializers.postulacion_para_org(p, u) for p, u in db.execute(stmt).all()]
+    return [serializers.postulacion_para_org(p, u, op) for p, u in db.execute(stmt).all()]
 
 
 @router.post("/{oportunidad_id}/postular", status_code=status.HTTP_201_CREATED)
@@ -177,17 +279,15 @@ def postular(oportunidad_id: int, db: DbSession, user: CurrentUser, background: 
     op = get_oportunidad_or_404(db, oportunidad_id)
     if normalize_role(user.rol) != "user":
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo las cuentas de voluntario pueden postular")
-    if op.estado not in ESTADOS_OPORTUNIDAD_ABIERTOS:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La oportunidad no está recibiendo postulaciones")
-    if op.fecha_limite_postulacion and op.fecha_limite_postulacion < date.today():
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La fecha límite de postulación ya pasó")
     if db.scalar(select(Postulacion.id).where(Postulacion.oportunidad_id == op.id, Postulacion.usuario_id == user.id)):
         raise HTTPException(status.HTTP_409_CONFLICT, "Ya postulaste a esta oportunidad")
     total = db.scalar(select(func.count(Postulacion.id)).where(Postulacion.oportunidad_id == op.id)) or 0
-    if op.meta_postulantes and total >= op.meta_postulantes:
+    if op.estado in ESTADOS_OPORTUNIDAD_ABIERTOS and (motivo := _motivo_cierre(op, total)):
         op.estado = "cerrada"
         db.commit()
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Se alcanzó el límite de postulaciones")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, motivo)
+    if op.estado not in ESTADOS_OPORTUNIDAD_ABIERTOS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La oportunidad no está recibiendo postulaciones")
     now = datetime.now()
     p = Postulacion(
         usuario_id=user.id,
@@ -203,6 +303,9 @@ def postular(oportunidad_id: int, db: DbSession, user: CurrentUser, background: 
         updated_at=now,
     )
     db.add(p)
+    # Esta postulación completa la meta: la convocatoria se cierra en el mismo momento
+    if op.meta_postulantes and total + 1 >= op.meta_postulantes:
+        op.estado = "cerrada"
     db.commit()
     org = db.get(Organizacion, op.organizacion_id)
     background.add_task(

@@ -1,9 +1,10 @@
 "use client";
 
-import { CalendarDays, HeartHandshake, MapPin, Pencil, Plus, Trash2, Users } from "lucide-react";
+import { CalendarClock, CalendarDays, HeartHandshake, MapPin, Pencil, Plus, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
+import CambiarFechasModal from "@/components/organizacion/CambiarFechasModal";
 import OportunidadForm from "@/components/organizacion/OportunidadForm";
 import { Badge, Button, Card, ConfirmModal, EmptyState, ErrorState, LinkButton, PageHeader, Spinner, Tabs } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
@@ -19,6 +20,7 @@ function Contenido() {
   const [form, setForm] = useState<{ open: boolean; op: Oportunidad | null }>({ open: params.get("nueva") === "1", op: null });
   const [deleting, setDeleting] = useState<Oportunidad | null>(null);
   const [closing, setClosing] = useState<Oportunidad | null>(null);
+  const [fechas, setFechas] = useState<Oportunidad | null>(null);
   const [tab, setTab] = useState<"abiertas" | "cerradas">("abiertas");
   const [busy, setBusy] = useState(false);
 
@@ -106,7 +108,8 @@ function Contenido() {
                   </div>
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted">
                     <span className="flex items-center gap-1">
-                      <Users className="h-3.5 w-3.5" /> {op.num_postulaciones} postulantes{op.cupo_maximo ? ` · ${op.cupo_maximo} cupos` : ""}
+                      <Users className="h-3.5 w-3.5" /> {op.num_postulaciones}
+                      {op.meta_postulantes ? ` de ${op.meta_postulantes} (meta)` : ""} postulantes{op.cupo_maximo ? ` · ${op.cupo_maximo} cupos` : ""}
                     </span>
                     {op.fecha_limite_postulacion && (
                       <span className="flex items-center gap-1">
@@ -127,6 +130,9 @@ function Contenido() {
                   <Button size="sm" variant="outline" onClick={() => setForm({ open: true, op })}>
                     <Pencil className="h-4 w-4" /> Editar
                   </Button>
+                  <Button size="sm" variant="outline" onClick={() => setFechas(op)}>
+                    <CalendarClock className="h-4 w-4" /> Cambiar fechas
+                  </Button>
                   {op.estado !== "cerrada" ? (
                     <Button size="sm" variant="outline" onClick={() => setClosing(op)}>
                       Cerrar
@@ -146,7 +152,14 @@ function Contenido() {
         </div>
       )}
 
-      <OportunidadForm open={form.open} oportunidad={form.op} onClose={() => setForm({ open: false, op: null })} onSaved={() => reload()} />
+      <OportunidadForm
+        key={form.open ? (form.op?.id ?? "nueva") : "cerrado"}
+        open={form.open}
+        oportunidad={form.op}
+        onClose={() => setForm({ open: false, op: null })}
+        onSaved={() => reload()}
+      />
+      <CambiarFechasModal key={fechas?.id ?? "ninguna"} op={fechas} onClose={() => setFechas(null)} onSaved={() => reload()} />
       <ConfirmModal
         open={!!closing}
         onClose={() => setClosing(null)}

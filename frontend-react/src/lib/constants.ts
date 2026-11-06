@@ -44,10 +44,10 @@ export const ESTADOS_POSTULACION = [
 ] as const;
 
 export const MOTIVOS_NO_SELECCION = [
-  "Cupos completos",
-  "No cumple con el perfil requerido",
-  "Disponibilidad horaria incompatible",
-  "Postulación incompleta",
+  "No cumple con el perfil requerido para la oportunidad",
+  "No postula en tiempo y/o forma",
+  "No cumple con los requisitos mínimos de postulación",
+  "No cuenta con la experiencia suficiente",
   "Otro",
 ];
 

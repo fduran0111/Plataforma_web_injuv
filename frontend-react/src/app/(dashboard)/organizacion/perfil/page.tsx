@@ -3,8 +3,9 @@
 import { Award, Camera, Plus, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Alert, Avatar, Button, Card, ErrorState, Field, Input, Select, Spinner, Textarea } from "@/components/ui";
+import UbicacionFields from "@/components/UbicacionFields";
 import { apiFetch, fileUrl } from "@/lib/api";
-import { AREAS_VOLUNTARIADO, REGIONES } from "@/lib/constants";
+import { AREAS_VOLUNTARIADO } from "@/lib/constants";
 import type { Organizacion } from "@/lib/types";
 import { useApi } from "@/hooks/useApi";
 import { useToast } from "@/providers/ToastProvider";
@@ -184,15 +185,12 @@ function Editor({ org, onSaved }: { org: Organizacion; onSaved: (o: Organizacion
             <Field label="Teléfono de contacto">
               {(id) => <Input id={id} type="tel" value={form.telefono_contacto} onChange={set("telefono_contacto")} />}
             </Field>
-            <Field label="Región">
-              {(id) => <Select id={id} value={form.region} onChange={set("region")} options={REGIONES} placeholder="Selecciona" />}
-            </Field>
-            <Field label="Ciudad">
-              {(id) => <Input id={id} value={form.ciudad} onChange={set("ciudad")} />}
-            </Field>
-            <Field label="Comuna">
-              {(id) => <Input id={id} value={form.comuna} onChange={set("comuna")} />}
-            </Field>
+            <UbicacionFields
+              region={form.region}
+              ciudad={form.ciudad}
+              comuna={form.comuna}
+              onChange={(patch) => setForm((f) => f && { ...f, ...patch })}
+            />
             <Field label="Voluntarios por año">
               {(id) => <Input id={id} placeholder="Ej: 50-100" value={form.voluntarios_anuales} onChange={set("voluntarios_anuales")} />}
             </Field>

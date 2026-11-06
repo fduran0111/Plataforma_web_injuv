@@ -1,8 +1,8 @@
 "use client";
 
-import { Download, Eye, EyeOff, Mail, MapPin, Phone, Send, Star, Upload } from "lucide-react";
+import { Download, Eye, EyeOff, Mail, MapPin, MessageCircle, Phone, Send, Star, Upload } from "lucide-react";
 import { useRef, useState } from "react";
-import { Alert, Avatar, Badge, Button, Card, Checkbox, Modal, Select, Stars, Textarea } from "@/components/ui";
+import { Alert, Avatar, Badge, Button, buttonClass, Card, Checkbox, Modal, Select, Stars, Textarea } from "@/components/ui";
 import { apiFetch, downloadFile, fileUrl } from "@/lib/api";
 import { ESTADO_POSTULACION_TONE, ESTADOS_POSTULACION, MOTIVOS_NO_SELECCION } from "@/lib/constants";
 import { formatDate, formatRut } from "@/lib/format";
@@ -11,7 +11,30 @@ import { useToast } from "@/providers/ToastProvider";
 
 const ASISTENCIAS: Asistencia[] = ["No aplica", "SI", "No"];
 
-export default function PostulanteCard({ p, onChanged }: { p: Postulante; onChanged: (p: Postulante) => void }) {
+/** Teléfono chileno → número para wa.me (569XXXXXXXX). Devuelve null si no parece válido. */
+function whatsappNumero(telefono: string | null | undefined): string | null {
+  const d = (telefono ?? "").replace(/\D/g, "");
+  if (d.length === 11 && d.startsWith("56")) return d;
+  if (d.length === 9 && d.startsWith("9")) return `56${d}`;
+  if (d.length === 8) return `569${d}`;
+  return d.length >= 10 ? d : null;
+}
+
+export default function PostulanteCard({
+  p,
+  oportunidadTitulo,
+  onChanged,
+}: {
+  p: Postulante;
+  oportunidadTitulo: string;
+  onChanged: (p: Postulante) => void;
+}) {
+  const asuntoCorreo = `Actualización estado de postulación: ${oportunidadTitulo}`;
+  const mailto = `mailto:${p.usuario_email}?subject=${encodeURIComponent(asuntoCorreo)}`;
+  const waNumero = whatsappNumero(p.usuario_telefono);
+  const whatsapp = waNumero
+    ? `https://wa.me/${waNumero}?text=${encodeURIComponent(`Hola ${p.usuario_nombre}, te escribimos por tu postulación a "${oportunidadTitulo}".`)}`
+    : null;
   const toast = useToast();
   const certRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -98,6 +121,15 @@ export default function PostulanteCard({ p, onChanged }: { p: Postulante; onChan
     );
 
   const declinada = p.estado === "Declinada por usuario";
+  const noSeleccionado = p.estado === "No seleccionado";
+  /** Sin participación (no seleccionado o rechazó el voluntariado): no se registra capacitación, actividad ni horas. */
+  const sinParticipacion = noSeleccionado || p.rechazo_participacion;
+  /** Motivo por el que el certificado y la evaluación aún no están disponibles. */
+  const bloqueoCierre = p.puede_certificar_y_evaluar
+    ? null
+    : p.estado !== "Seleccionado" || p.rechazo_participacion
+      ? "Disponible solo para seleccionados que participaron"
+      : "Disponible cuando termine el voluntariado";
 
   return (
     <Card className="p-5">
@@ -107,14 +139,19 @@ export default function PostulanteCard({ p, onChanged }: { p: Postulante; onChan
           <div>
             <p className="font-semibold text-fg">{p.usuario_nombre}</p>
             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-fg-muted">
-              <span className="flex items-center gap-1">
+              <a href={mailto} className="flex items-center gap-1 hover:text-brand hover:underline" title="Enviar correo">
                 <Mail className="h-3 w-3" /> {p.usuario_email}
-              </span>
-              {p.usuario_telefono && (
-                <span className="flex items-center gap-1">
-                  <Phone className="h-3 w-3" /> {p.usuario_telefono}
-                </span>
-              )}
+              </a>
+              {p.usuario_telefono &&
+                (whatsapp ? (
+                  <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-brand hover:underline" title="Abrir WhatsApp">
+                    <Phone className="h-3 w-3" /> {p.usuario_telefono}
+                  </a>
+                ) : (
+                  <span className="flex items-center gap-1">
+                    <Phone className="h-3 w-3" /> {p.usuario_telefono}
+                  </span>
+                ))}
               {(p.usuario_comuna || p.usuario_region) && (
                 <span className="flex items-center gap-1">
                   <MapPin className="h-3 w-3" /> {[p.usuario_comuna, p.usuario_region].filter(Boolean).join(", ")}
@@ -128,13 +165,36 @@ export default function PostulanteCard({ p, onChanged }: { p: Postulante; onChan
         </div>
         <div className="flex flex-col items-end gap-1.5">
           <Badge tone={ESTADO_POSTULACION_TONE[p.estado] ?? "neutral"}>{p.estado}</Badge>
+          <div className="flex gap-1.5">
+            <a href={mailto} className={buttonClass("outline", "sm")} aria-label={`Enviar correo a ${p.usuario_nombre}`}>
+              <Mail className="h-4 w-4" /> Correo
+            </a>
+            {whatsapp && (
+              <a href={whatsapp} target="_blank" rel="noopener noreferrer" className={buttonClass("outline", "sm")} aria-label={`Abrir WhatsApp con ${p.usuario_nombre}`}>
+                <MessageCircle className="h-4 w-4" /> WhatsApp
+              </a>
+            )}
+          </div>
           {p.estado === "Seleccionado" && (
             <span className="text-xs text-fg-muted">{p.estado_confirmacion === "Confirmado" ? "✓ Confirmó participación" : p.estado_confirmacion === "No confirmado" ? "No confirmó" : "Sin confirmar"}</span>
           )}
         </div>
       </div>
 
-      {declinada && <Alert className="mt-4">El voluntario retiró su postulación; no puedes cambiar su estado.</Alert>}
+      {p.rechazo_participacion && (
+        <Alert tone="amber" className="mt-4">
+          <strong>El postulante rechazó el voluntariado.</strong>{" "}
+          {declinada
+            ? "Retiró su postulación, por lo que no puedes cambiar su estado."
+            : "Fue seleccionado pero indicó que no participará."}{" "}
+          Capacitación, actividad y horas quedan bloqueadas.
+        </Alert>
+      )}
+      {noSeleccionado && (
+        <p className="mt-4 text-xs text-fg-muted">
+          Postulante no seleccionado: capacitación, actividad y horas quedan bloqueadas. Cambia su estado para habilitarlas.
+        </p>
+      )}
 
       <div className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-4">
         <Select
@@ -153,7 +213,7 @@ export default function PostulanteCard({ p, onChanged }: { p: Postulante; onChan
         <Select
           aria-label="Asistencia capacitación"
           value={p.asistencia_capacitacion}
-          disabled={busy}
+          disabled={busy || sinParticipacion}
           onChange={(e) => setAsistencia("asistencia_capacitacion", e.target.value as Asistencia)}
           options={ASISTENCIAS.map((a) => ({ value: a, label: `Capacitación: ${a}` }))}
           className="h-9 text-xs"
@@ -161,7 +221,7 @@ export default function PostulanteCard({ p, onChanged }: { p: Postulante; onChan
         <Select
           aria-label="Asistencia actividad"
           value={p.asistencia_actividad}
-          disabled={busy}
+          disabled={busy || sinParticipacion}
           onChange={(e) => setAsistencia("asistencia_actividad", e.target.value as Asistencia)}
           options={ASISTENCIAS.map((a) => ({ value: a, label: `Actividad: ${a}` }))}
           className="h-9 text-xs"
@@ -172,11 +232,12 @@ export default function PostulanteCard({ p, onChanged }: { p: Postulante; onChan
             min={0}
             aria-label="Horas de voluntariado"
             value={horas}
+            disabled={sinParticipacion}
             onChange={(e) => setHoras(e.target.value)}
             placeholder="Horas"
-            className="h-9 w-full min-w-0 rounded-xl border border-border bg-surface px-3 text-xs text-fg focus:border-brand focus:outline-none"
+            className="h-9 w-full min-w-0 rounded-xl border border-border bg-surface px-3 text-xs text-fg focus:border-brand focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           />
-          <Button size="sm" variant="outline" loading={busy} onClick={guardarHoras}>
+          <Button size="sm" variant="outline" loading={busy} disabled={sinParticipacion} onClick={guardarHoras}>
             Horas
           </Button>
         </div>
@@ -202,11 +263,18 @@ export default function PostulanteCard({ p, onChanged }: { p: Postulante; onChan
             </Button>
           </>
         ) : (
-          <Button size="sm" variant="outline" loading={busy} onClick={() => certRef.current?.click()}>
+          <Button
+            size="sm"
+            variant="outline"
+            loading={busy}
+            disabled={!!bloqueoCierre}
+            title={bloqueoCierre ?? undefined}
+            onClick={() => certRef.current?.click()}
+          >
             <Upload className="h-4 w-4" /> Subir certificado PDF
           </Button>
         )}
-        <Button size="sm" variant="ghost" onClick={() => setResenaOpen(true)}>
+        <Button size="sm" variant="ghost" disabled={!!bloqueoCierre} title={bloqueoCierre ?? undefined} onClick={() => setResenaOpen(true)}>
           <Star className="h-4 w-4" /> {p.resena_org || p.calificacion_org != null ? "Editar evaluación" : "Evaluar voluntario"}
         </Button>
         {p.resena_usuario && (
@@ -214,6 +282,9 @@ export default function PostulanteCard({ p, onChanged }: { p: Postulante; onChan
             {p.resena_usuario_publica ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             {p.resena_usuario_publica ? "Ocultar reseña" : "Publicar reseña"}
           </Button>
+        )}
+        {bloqueoCierre && !p.tiene_certificado && (
+          <span className="text-xs text-fg-muted">Certificado y evaluación: {bloqueoCierre.toLowerCase()}.</span>
         )}
       </div>
 

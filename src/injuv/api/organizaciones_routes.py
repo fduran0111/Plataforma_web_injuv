@@ -104,13 +104,14 @@ def mi_organizacion(db: DbSession, org: OwnOrganization) -> dict[str, Any]:
 
 
 @router.get("/solicitudes/mia")
-def mi_solicitud(db: DbSession, user: CurrentUser) -> list[dict[str, Any]]:
-    solicitudes = db.scalars(
+def mis_solicitudes(db: DbSession, user: CurrentUser) -> list[dict[str, Any]]:
+    """Solicitudes del usuario, la más reciente primero (la pendiente y el historial)."""
+    rows = db.scalars(
         select(SolicitudOrganizacion)
         .where(SolicitudOrganizacion.id_usuario_org == user.id)
         .order_by(SolicitudOrganizacion.created_at.desc())
     )
-    return [serializers.solicitud(s, user, None) for s in solicitudes]
+    return [serializers.solicitud(s, user, None) for s in rows]
 
 
 @router.get("/mia/resenas")

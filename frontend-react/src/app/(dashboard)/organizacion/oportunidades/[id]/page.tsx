@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, CalendarDays, Mail, MapPin, Send, Users } from "lucide-react";
+import { Armchair, ArrowLeft, CalendarDays, Mail, MapPin, Send, Target, Users } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
@@ -75,8 +75,19 @@ export default function PostulantesPage() {
               </span>
             )}
             <span className="flex items-center gap-1.5">
-              <Users className="h-4 w-4" /> {postulantes.data?.length ?? 0} postulantes{o.cupo_maximo ? ` / ${o.cupo_maximo} cupos` : ""}
+              <Users className="h-4 w-4" /> {postulantes.data?.length ?? 0} postulantes
             </span>
+            {o.meta_postulantes ? (
+              <span className="flex items-center gap-1.5">
+                <Target className="h-4 w-4" /> Meta: {o.meta_postulantes}
+                {(postulantes.data?.length ?? 0) >= o.meta_postulantes ? " (alcanzada)" : ` (faltan ${o.meta_postulantes - (postulantes.data?.length ?? 0)})`}
+              </span>
+            ) : null}
+            {o.cupo_maximo ? (
+              <span className="flex items-center gap-1.5">
+                <Armchair className="h-4 w-4" /> {conteo("Seleccionado")} de {o.cupo_maximo} cupos ocupados
+              </span>
+            ) : null}
           </div>
         </div>
         <div className="flex gap-2">
@@ -108,7 +119,7 @@ export default function PostulantesPage() {
             description={estadoFiltro === "todos" ? "Comparte el enlace público del voluntariado para atraer postulantes." : undefined}
           />
         ) : (
-          lista.map((p) => <PostulanteCard key={p.id} p={p} onChanged={(next) => postulantes.setData((prev) => (prev ?? []).map((x) => (x.id === next.id ? { ...x, ...next } : x)))} />)
+          lista.map((p) => <PostulanteCard key={p.id} p={p} oportunidadTitulo={o.titulo} onChanged={(next) => postulantes.setData((prev) => (prev ?? []).map((x) => (x.id === next.id ? { ...x, ...next } : x)))} />)
         )}
       </div>
 
