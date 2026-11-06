@@ -46,11 +46,11 @@ export function DocumentoCard({ doc }: { doc: Documento }) {
   return (
     <Recorte id={`doc-${doc.seccion}-${doc.id}`} interactive={false} className="flex flex-col p-5">
       <div className="flex items-start gap-3">
-        <div className={`rounded-md border-[1.5px] border-tinta p-2.5 ${isVideo ? "bg-violet-50 text-violet-700" : "bg-brand-soft text-brand-dark"}`}>
+        <div className={`rounded-md border-[1.5px] border-tinta p-2.5 ${isVideo ? "bg-ambar/25 text-[#8a5a0b]" : "bg-brand-soft text-brand-dark"}`}>
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          {etiqueta && <Badge tone={doc.seccion === "academia" ? "violet" : "blue"}>{etiqueta}</Badge>}
+          {etiqueta && <Badge tone={doc.seccion === "academia" ? "amber" : "blue"}>{etiqueta}</Badge>}
           <h3 className="mt-2 line-clamp-2 text-h3 text-fg">{doc.nombre_archivo}</h3>
         </div>
       </div>

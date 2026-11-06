@@ -3,7 +3,9 @@
 import { BookOpen, Search } from "lucide-react";
 import { useDeferredValue, useState } from "react";
 import { DocumentoCard } from "@/components/ContentCards";
-import { EmptyState, ErrorState, Input, Select, Spinner } from "@/components/ui";
+import { Stagger, StaggerItem } from "@/components/home/Stagger";
+import Portada from "@/components/public/Portada";
+import { EmptyState, ErrorState, Spinner } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import type { Documento, Tematica } from "@/lib/types";
 
@@ -13,35 +15,60 @@ export default function BibliotecaPage() {
   const [q, setQ] = useState("");
   const query = useDeferredValue(new URLSearchParams({ ...(tematica && { tematica_id: tematica }), ...(q && { q }) }).toString());
   const { data, loading, error, reload } = useApi<Documento[]>(`/biblioteca/documentos${query ? `?${query}` : ""}`);
+  const activa = tematicas.data?.find((t) => String(t.id) === tematica);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mb-8 rounded-3xl bg-gradient-to-br from-sky-600 to-brand p-8 text-white sm:p-10">
-        <BookOpen className="h-10 w-10" />
-        <h1 className="mt-4 text-3xl font-bold tracking-tight">Biblioteca y estudios</h1>
-        <p className="mt-2 max-w-2xl text-white/80">Investigaciones, informes y documentos sobre juventud, participación y voluntariado.</p>
-      </div>
-      <div className="mb-8 grid gap-3 rounded-2xl border border-border bg-surface p-4 shadow-sm sm:grid-cols-[2fr_1fr]">
+    <>
+      <Portada
+        tono="ambar"
+        compacta
+        lineas={["Biblioteca", "y estudios"]}
+        texto="Investigaciones, encuestas e informes del INJUV y sus aliados sobre juventud, participación y voluntariado. Descárgalos gratis."
+        lado={
+          data ? (
+            <p className="text-right lg:text-left">
+              <span className="block font-display text-6xl leading-none tabular-nums tracking-[-0.03em] text-tinta">{data.length}</span>
+              <span className="mt-2 block text-sm text-tinta/70">{data.length === 1 ? "documento" : "documentos"}{activa ? ` en ${activa.nombre}` : " disponibles"}</span>
+            </p>
+          ) : undefined
+        }
+      >
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-muted" />
-          <Input aria-label="Buscar" placeholder="Buscar documento…" className="pl-10" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-muted" />
+          <input aria-label="Buscar" placeholder="Buscar documento…" className="campo-vivo" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-        <Select
-          aria-label="Temática"
-          value={tematica}
-          onChange={(e) => setTematica(e.target.value)}
-          options={(tematicas.data ?? []).map((t) => ({ value: t.id, label: t.nombre }))}
-          placeholder="Todas las temáticas"
-        />
+      </Portada>
+
+      <div className="mx-auto max-w-7xl px-4 pb-24 pt-10 sm:px-6 lg:px-8 lg:pb-32 lg:pt-14">
+        {/* Temáticas: fichas que filtran (mismo estado que antes alimentaba el selector) */}
+        <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0 [scrollbar-width:none]" role="group" aria-label="Temática">
+          <div className="flex gap-2">
+            <button type="button" className="ficha" aria-pressed={tematica === ""} onClick={() => setTematica("")}>
+              Todas las temáticas
+            </button>
+            {(tematicas.data ?? []).map((t) => (
+              <button key={t.id} type="button" className="ficha" aria-pressed={tematica === String(t.id)} onClick={() => setTematica(String(t.id))}>
+                {t.nombre}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-10">
+          {error && <ErrorState message={error} onRetry={reload} />}
+          {loading && !data && <Spinner />}
+          {data?.length === 0 && <EmptyState icon={BookOpen} title="No hay documentos con esos filtros" description="Prueba con otra temática o con otra palabra." />}
+          {!!data?.length && (
+            <Stagger key={query} className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" stagger={0.05}>
+              {data.map((d) => (
+                <StaggerItem key={d.id} className="h-full">
+                  <DocumentoCard doc={d} />
+                </StaggerItem>
+              ))}
+            </Stagger>
+          )}
+        </div>
       </div>
-      {error && <ErrorState message={error} onRetry={reload} />}
-      {loading && !data && <Spinner />}
-      {data?.length === 0 && <EmptyState icon={BookOpen} title="No hay documentos con esos filtros" />}
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {data?.map((d) => (
-          <DocumentoCard key={d.id} doc={d} />
-        ))}
-      </div>
-    </div>
+    </>
   );
 }

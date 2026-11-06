@@ -4,6 +4,7 @@ import { Newspaper, Pencil, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { Alert, Badge, Button, Card, ConfirmModal, EmptyState, ErrorState, Field, Input, Modal, PageHeader, Select, Spinner, Textarea } from "@/components/ui";
+import FilasAnimadas from "@/components/admin/FilasAnimadas";
 import { useApi } from "@/hooks/useApi";
 import { apiFetch, fileUrl } from "@/lib/api";
 import { formatDate } from "@/lib/format";
@@ -93,9 +94,11 @@ export default function AdminNoticiasPage() {
       {error && <ErrorState message={error} onRetry={reload} />}
       {loading && !data && <Spinner />}
       {data?.length === 0 && <EmptyState icon={Newspaper} title="Aún no hay noticias" />}
-      <div className="space-y-3">
-        {data?.map((n) => (
-          <Card key={n.id} className="flex items-center gap-4 p-4">
+      {!!data?.length && (
+      <Card className="overflow-hidden">
+      <FilasAnimadas>
+        {data.map((n) => (
+          <li key={n.id} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-tinta/[0.025]">
             {n.imagen && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={fileUrl.noticia(n.imagen)} alt="" className="h-14 w-20 shrink-0 rounded-lg object-cover" />
@@ -109,15 +112,17 @@ export default function AdminNoticiasPage() {
               </p>
             </div>
             <Badge tone={TONE[n.estado]}>{ESTADOS.find((e) => e.value === n.estado)?.label}</Badge>
-            <Button size="sm" variant="outline" onClick={() => open(n)}>
+            <Button size="sm" variant="outline" onClick={() => open(n)} aria-label={`Editar ${n.titulo}`}>
               <Pencil className="h-4 w-4" />
             </Button>
-            <Button size="sm" variant="ghost" className="text-red-600" onClick={() => setDeleting(n)}>
+            <Button size="sm" variant="ghost" className="text-red-600" onClick={() => setDeleting(n)} aria-label={`Eliminar ${n.titulo}`}>
               <Trash2 className="h-4 w-4" />
             </Button>
-          </Card>
+          </li>
         ))}
-      </div>
+      </FilasAnimadas>
+      </Card>
+      )}
 
       <Modal
         open={!!form}

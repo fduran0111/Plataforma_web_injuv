@@ -14,9 +14,9 @@ type Repo = { biblioteca: Documento[]; academia: Documento[] };
 
 function DocRow({ doc, actions }: { doc: Documento; actions: React.ReactNode }) {
   return (
-    <Card className="flex flex-wrap items-center justify-between gap-4 p-4">
+    <li className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-tinta/[0.025]">
       <div className="flex min-w-0 items-center gap-3">
-        <div className={`shrink-0 rounded-xl p-2.5 ${doc.seccion === "academia" ? "bg-violet-50 text-violet-600" : "bg-brand-soft text-brand"}`}>
+        <div className={`shrink-0 rounded-xl p-2.5 ${doc.seccion === "academia" ? "bg-ambar/20 text-[#8a5a0b]" : "bg-brand-soft text-brand"}`}>
           <FileText className="h-4 w-4" />
         </div>
         <div className="min-w-0">
@@ -30,7 +30,7 @@ function DocRow({ doc, actions }: { doc: Documento; actions: React.ReactNode }) 
         </div>
       </div>
       <div className="flex items-center gap-2">{actions}</div>
-    </Card>
+    </li>
   );
 }
 
@@ -144,7 +144,9 @@ export default function AdminRepositorioPage() {
         <Input placeholder="Buscar documento…" className="pl-10" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       {data && !docs.length && <EmptyState icon={FileText} title="Sin documentos" />}
-      <div className="space-y-3">
+      {!!docs.length && (
+      <Card className="overflow-hidden">
+      <ul className="divide-y divide-tinta/[0.07]">
         {docs.map((d) => (
           <DocRow
             key={d.id}
@@ -165,14 +167,16 @@ export default function AdminRepositorioPage() {
                 <Button size="sm" variant="outline" onClick={() => downloadFile(`/repositorio/${d.seccion}/${d.id}/descargar`, d.nombre_archivo)}>
                   <Download className="h-4 w-4" />
                 </Button>
-                <Button size="sm" variant="ghost" className="text-red-600" onClick={() => setDeleting(d)}>
+                <Button size="sm" variant="ghost" className="text-red-600" onClick={() => setDeleting(d)} aria-label={`Eliminar ${d.nombre_archivo}`}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </>
             }
           />
         ))}
-      </div>
+      </ul>
+      </Card>
+      )}
 
       <Modal
         open={uploadOpen}

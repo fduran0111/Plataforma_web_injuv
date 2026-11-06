@@ -392,21 +392,21 @@ export function StatCard({
   tone?: "blue" | "green" | "amber" | "violet" | "red";
 }) {
   const tones = {
-    blue: "bg-brand-soft text-brand-dark",
-    green: "bg-emerald-50 text-emerald-700",
-    amber: "bg-amber-50 text-amber-700",
-    violet: "bg-violet-50 text-violet-700",
+    blue: "bg-brand-soft text-brand",
+    green: "bg-tinta text-ambar",
+    amber: "bg-ambar/20 text-[#8a5a0b]",
+    violet: "bg-brand text-white",
     red: "bg-red-50 text-red-700",
   };
   return (
-    <Card className="p-5">
+    <Card className="p-6">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="text-sm font-medium text-fg-muted">{label}</p>
-          <p className="mt-1 font-display text-3xl text-fg tabular-nums">{value}</p>
-          {hint && <p className="mt-1 text-xs text-fg-muted">{hint}</p>}
+          <p className="mt-2 font-display text-[2rem] leading-none tracking-[-0.02em] text-fg tabular-nums">{value}</p>
+          {hint && <p className="mt-2 text-xs text-fg-muted">{hint}</p>}
         </div>
-        <div className={cn("rounded-md border-[1.5px] border-tinta/15 p-2.5", tones[tone])}>
+        <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl", tones[tone])}>
           <Icon className="h-5 w-5" />
         </div>
       </div>
@@ -444,7 +444,7 @@ export function Tabs<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="flex gap-1 overflow-x-auto rounded-md border-[1.5px] border-tinta/15 bg-papel-strong p-1">
+    <div className="pestanas flex gap-1 overflow-x-auto rounded-md border-[1.5px] border-tinta/15 bg-papel-strong p-1">
       {tabs.map((t) => (
         <button
           key={t.value}
