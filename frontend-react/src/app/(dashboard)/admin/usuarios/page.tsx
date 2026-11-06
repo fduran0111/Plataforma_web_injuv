@@ -3,6 +3,7 @@
 import { Download, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Avatar, Badge, Button, Card, ConfirmModal, EmptyState, ErrorState, Input, Modal, PageHeader, Select, Spinner } from "@/components/ui";
+import FilasAnimadas from "@/components/admin/FilasAnimadas";
 import { useApi } from "@/hooks/useApi";
 import { apiFetch, downloadFile, fileUrl } from "@/lib/api";
 import { ROL_LABEL } from "@/lib/constants";
@@ -11,7 +12,7 @@ import type { Organizacion, Rol, Usuario } from "@/lib/types";
 import { useAuth } from "@/providers/AuthProvider";
 import { useToast } from "@/providers/ToastProvider";
 
-const ROL_TONE: Record<Rol, "blue" | "violet" | "red"> = { user: "blue", organizacion: "violet", admin: "red" };
+const ROL_TONE: Record<Rol, "blue" | "amber" | "red"> = { user: "blue", organizacion: "amber", admin: "red" };
 
 export default function AdminUsuariosPage() {
   const toast = useToast();
@@ -85,7 +86,7 @@ export default function AdminUsuariosPage() {
           </Button>
         }
       />
-      <div className="mb-6 grid gap-3 sm:grid-cols-[2fr_1fr]">
+      <div className="mb-5 grid gap-3 sm:grid-cols-[2fr_1fr]">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-muted" />
           <Input placeholder="Buscar por nombre, correo o RUT…" className="pl-10" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -96,33 +97,59 @@ export default function AdminUsuariosPage() {
       {error && <ErrorState message={error} onRetry={reload} />}
       {loading && !data && <Spinner />}
       {data && !lista.length && <EmptyState icon={Search} title="Sin resultados" />}
-      <div className="space-y-3">
-        {lista.map((u) => (
-          <Card key={u.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
-            <div className="flex min-w-0 items-center gap-3">
-              <Avatar name={fullName(u)} src={u.tiene_foto ? fileUrl.foto(u.id, u.foto_version) : null} size={42} />
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-fg">
-                  {fullName(u)} {u.id === me?.id && <span className="text-xs font-normal text-fg-muted">(tú)</span>}
-                </p>
-                <p className="truncate text-xs text-fg-muted">
-                  {u.email} · {formatRut(u.rut)} · registro {formatDate(u.created_at)}
-                </p>
-                {u.organizacion && <p className="truncate text-xs text-brand">Administra: {u.organizacion.nombre}</p>}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge tone={ROL_TONE[u.rol]}>{ROL_LABEL[u.rol]}</Badge>
-              <Button size="sm" variant="outline" onClick={() => abrirRol(u)}>
-                Cambiar rol
-              </Button>
-              <Button size="sm" variant="ghost" className="text-red-600" disabled={u.id === me?.id} onClick={() => setDeleting(u)}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          </Card>
-        ))}
-      </div>
+      {!!lista.length && (
+        <Card className="overflow-hidden">
+          <div className="hidden grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-4 border-b border-tinta/[0.07] bg-tinta/[0.02] px-5 py-3 text-xs font-semibold uppercase tracking-[0.06em] text-fg-muted lg:grid">
+            <span>Usuario</span>
+            <span>RUT · Registro</span>
+            <span>Rol</span>
+            <span className="w-[9.5rem] text-right">Acciones</span>
+          </div>
+          <FilasAnimadas>
+            {lista.map((u) => (
+              <li
+                key={u.id}
+                className="grid items-center gap-x-4 gap-y-3 px-5 py-4 transition-colors hover:bg-tinta/[0.025] sm:grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <Avatar name={fullName(u)} src={u.tiene_foto ? fileUrl.foto(u.id, u.foto_version) : null} size={40} />
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-fg">
+                      {fullName(u)} {u.id === me?.id && <span className="text-xs font-normal text-fg-muted">(tú)</span>}
+                    </p>
+                    <p className="truncate text-xs text-fg-muted">
+                      {u.email}
+                      <span className="lg:hidden">
+                        {" "}
+                        · {formatRut(u.rut)} · registro {formatDate(u.created_at)}
+                      </span>
+                    </p>
+                    {u.organizacion && <p className="truncate text-xs font-medium text-brand">Administra: {u.organizacion.nombre}</p>}
+                  </div>
+                </div>
+                <div className="hidden min-w-0 text-sm lg:block">
+                  <p className="truncate tabular-nums text-fg-secondary">{formatRut(u.rut)}</p>
+                  <p className="truncate text-xs text-fg-muted">registro {formatDate(u.created_at)}</p>
+                </div>
+                <div className="hidden lg:block">
+                  <Badge tone={ROL_TONE[u.rol]}>{ROL_LABEL[u.rol]}</Badge>
+                </div>
+                <div className="flex items-center gap-2 sm:justify-end">
+                  <span className="lg:hidden">
+                    <Badge tone={ROL_TONE[u.rol]}>{ROL_LABEL[u.rol]}</Badge>
+                  </span>
+                  <Button size="sm" variant="outline" onClick={() => abrirRol(u)}>
+                    Cambiar rol
+                  </Button>
+                  <Button size="sm" variant="ghost" className="text-red-600" disabled={u.id === me?.id} onClick={() => setDeleting(u)} aria-label={`Eliminar a ${fullName(u)}`}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </FilasAnimadas>
+        </Card>
+      )}
 
       <Modal
         open={!!rolModal}
