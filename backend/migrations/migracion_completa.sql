@@ -1,4 +1,4 @@
-g-- INJUV - Migración completa (un solo archivo)
+-- INJUV - Migración completa (un solo archivo)
 --
 -- IMPORTANTE (para que funcione desde 0):
 -- 1) Crea la BD "INJUV" (UTF8).
