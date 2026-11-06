@@ -82,14 +82,23 @@ export type PostulacionBase = {
   updated_at: string | null;
 };
 
-export type PostulacionUsuario = PostulacionBase & {
+/** Banderas de etapa que la API agrega en las vistas del voluntario y de la organización. */
+export type CicloPostulacion = {
+  /** Retiró la postulación o, siendo seleccionado, indicó que no participará. */
+  rechazo_participacion: boolean;
+  voluntariado_terminado: boolean;
+  /** Seleccionado que participa y voluntariado terminado: se habilitan certificado y evaluaciones. */
+  puede_certificar_y_evaluar: boolean;
+};
+
+export type PostulacionUsuario = PostulacionBase & CicloPostulacion & {
   oportunidad_titulo: string;
   oportunidad_estado: string;
   organizacion_id: number | null;
   organizacion_nombre: string;
 };
 
-export type Postulante = PostulacionBase & {
+export type Postulante = PostulacionBase & CicloPostulacion & {
   usuario_nombre: string;
   usuario_email: string;
   usuario_telefono: string;

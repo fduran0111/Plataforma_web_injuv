@@ -5,10 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import RequireAuth from "@/components/RequireAuth";
-import { Alert, Badge, Button, Card, EmptyState, ErrorState, Field, Input, Select, Spinner, Textarea } from "@/components/ui";
+import { Alert, Badge, Button, Card, EmptyState, ErrorState, Field, Input, Spinner, Textarea } from "@/components/ui";
+import UbicacionFields from "@/components/UbicacionFields";
 import { useApi } from "@/hooks/useApi";
 import { apiFetch } from "@/lib/api";
-import { REGIONES } from "@/lib/constants";
 import { formatDate, formatRut } from "@/lib/format";
 import type { Solicitud, Usuario } from "@/lib/types";
 import { useToast } from "@/providers/ToastProvider";
@@ -77,15 +77,13 @@ function FormularioSolicitud({ onCreated }: { onCreated: () => void }) {
         <Field label="Fecha de creación" required>
           {(id) => <Input id={id} type="date" required value={form.fecha_creacion} onChange={set("fecha_creacion")} />}
         </Field>
-        <Field label="Región" required>
-          {(id) => <Select id={id} required value={form.region} onChange={set("region")} options={REGIONES} placeholder="Selecciona" />}
-        </Field>
-        <Field label="Ciudad" required>
-          {(id) => <Input id={id} required value={form.ciudad} onChange={set("ciudad")} />}
-        </Field>
-        <Field label="Comuna" required>
-          {(id) => <Input id={id} required value={form.comuna} onChange={set("comuna")} />}
-        </Field>
+        <UbicacionFields
+          region={form.region}
+          ciudad={form.ciudad}
+          comuna={form.comuna}
+          onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+          required
+        />
         <Field label="Sitio web">
           {(id) => <Input id={id} type="url" placeholder="https://www.tuorganizacion.cl" value={form.sitio_web} onChange={set("sitio_web")} />}
         </Field>

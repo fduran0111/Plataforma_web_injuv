@@ -16,6 +16,7 @@ from injuv.db.models import (
     Usuario,
 )
 from injuv.security.rbac import normalize_role
+from injuv.services.catalogo import puede_certificar_y_evaluar, rechazo_participacion, voluntariado_terminado
 
 
 def _num(value: Decimal | None) -> float | None:
@@ -149,9 +150,24 @@ def postulacion_base(p: Postulacion) -> dict[str, Any]:
     }
 
 
+def postulacion_con_ciclo(p: Postulacion, op: Oportunidad | None) -> dict[str, Any]:
+    """Respuesta de las acciones sobre una postulación (incluye las banderas de etapa actualizadas)."""
+    return {**postulacion_base(p), **_ciclo(p, op)}
+
+
+def _ciclo(p: Postulacion, op: Oportunidad | None) -> dict[str, Any]:
+    """Banderas de etapa: si rechazó participar, si el voluntariado terminó y si ya se puede certificar/evaluar."""
+    return {
+        "rechazo_participacion": rechazo_participacion(p),
+        "voluntariado_terminado": voluntariado_terminado(op),
+        "puede_certificar_y_evaluar": puede_certificar_y_evaluar(p, op),
+    }
+
+
 def postulacion_para_usuario(p: Postulacion, op: Oportunidad | None, org: Organizacion | None) -> dict[str, Any]:
     data = postulacion_base(p)
     data.update(
+        _ciclo(p, op),
         oportunidad_titulo=op.titulo if op else "",
         oportunidad_estado=(op.estado if op else "") or "",
         organizacion_id=org.id if org else None,
@@ -160,9 +176,10 @@ def postulacion_para_usuario(p: Postulacion, op: Oportunidad | None, org: Organi
     return data
 
 
-def postulacion_para_org(p: Postulacion, u: Usuario | None) -> dict[str, Any]:
+def postulacion_para_org(p: Postulacion, u: Usuario | None, op: Oportunidad | None = None) -> dict[str, Any]:
     data = postulacion_base(p)
     data.update(
+        _ciclo(p, op),
         usuario_nombre=nombre_completo(u),
         usuario_email=(u.email if u else "") or "",
         usuario_telefono=(u.telefono if u else "") or "",

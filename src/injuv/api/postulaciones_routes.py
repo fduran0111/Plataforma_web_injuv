@@ -23,7 +23,7 @@ from injuv.schemas.postulaciones import (
 )
 from injuv.security.rbac import is_admin
 from injuv.services import files, mailer, serializers
-from injuv.services.catalogo import ESTADO_DECLINADA
+from injuv.services.catalogo import ESTADO_DECLINADA, rechazo_participacion, voluntariado_terminado
 
 router = APIRouter(prefix="/postulaciones", tags=["Postulaciones"])
 
@@ -53,7 +53,15 @@ def _managed(db: DbSession, postulacion_id: int, user: Usuario) -> tuple[Postula
 def _touch_and_return(db: DbSession, p: Postulacion) -> dict[str, Any]:
     p.updated_at = datetime.now()
     db.commit()
-    return serializers.postulacion_base(p)
+    return serializers.postulacion_con_ciclo(p, db.get(Oportunidad, p.oportunidad_id))
+
+
+def _exigir_fin_de_ciclo(p: Postulacion, op: Oportunidad, accion: str) -> None:
+    """Certificado y evaluaciones solo con el voluntariado terminado y un seleccionado que participa."""
+    if p.estado != "Seleccionado" or rechazo_participacion(p):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Solo se puede {accion} de postulantes seleccionados que participaron")
+    if not voluntariado_terminado(op):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Podrás {accion} cuando termine el voluntariado")
 
 
 # ---------- Voluntario ----------
@@ -77,9 +85,8 @@ def confirmar_participacion(postulacion_id: int, body: ConfirmacionBody, db: DbS
 
 @router.put("/{postulacion_id}/resena-usuario")
 def resena_usuario(postulacion_id: int, body: ResenaUsuarioBody, db: DbSession, user: CurrentUser) -> dict[str, Any]:
-    p, _ = _own(db, postulacion_id, user)
-    if p.estado != "Seleccionado":
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Solo puedes reseñar voluntariados en los que participaste")
+    p, op = _own(db, postulacion_id, user)
+    _exigir_fin_de_ciclo(p, op, "evaluar el voluntariado")
     p.resena_usuario = body.resena.strip()
     p.calificacion_usuario_org = round(body.calificacion, 1)
     p.resena_usuario_publica = body.es_publica
@@ -125,6 +132,16 @@ def cambiar_estado(
 @router.patch("/{postulacion_id}/asistencia")
 def asistencia(postulacion_id: int, body: AsistenciaBody, db: DbSession, user: CurrentUser) -> dict[str, Any]:
     p, _, _ = _managed(db, postulacion_id, user)
+    if p.estado == "No seleccionado":
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "No se puede registrar asistencia ni horas de un postulante no seleccionado",
+        )
+    if rechazo_participacion(p):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "El postulante rechazó el voluntariado: no se puede registrar asistencia ni horas",
+        )
     if body.asistencia_capacitacion is not None:
         p.asistencia_capacitacion = body.asistencia_capacitacion
     if body.asistencia_actividad is not None:
@@ -145,7 +162,8 @@ def asistencia(postulacion_id: int, body: AsistenciaBody, db: DbSession, user: C
 
 @router.put("/{postulacion_id}/resena-org")
 def resena_org(postulacion_id: int, body: ResenaOrgBody, db: DbSession, user: CurrentUser) -> dict[str, Any]:
-    p, _, _ = _managed(db, postulacion_id, user)
+    p, op, _ = _managed(db, postulacion_id, user)
+    _exigir_fin_de_ciclo(p, op, "evaluar al voluntario")
     p.resena_org_sobre_voluntario = (body.resena or "").strip() or None
     p.calificacion_org = round(body.calificacion, 1) if body.calificacion is not None else None
     p.resena_org_publica = body.es_publica
@@ -167,7 +185,8 @@ async def subir_certificado(
     user: CurrentUser,
     certificado: UploadFile = File(...),
 ) -> dict[str, Any]:
-    p, _, _ = _managed(db, postulacion_id, user)
+    p, op, _ = _managed(db, postulacion_id, user)
+    _exigir_fin_de_ciclo(p, op, "subir el certificado")
     name, _, _ = await files.save_upload(certificado, CERT_FOLDER, f"certificado_{p.id}", {".pdf"}, 10)
     files.delete(CERT_FOLDER, p.ruta_certificado_pdf)
     p.ruta_certificado_pdf = name

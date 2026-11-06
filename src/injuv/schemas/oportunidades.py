@@ -8,6 +8,38 @@ from pydantic import BaseModel, EmailStr, Field, field_validator, model_validato
 EstadoOportunidad = Literal["activa", "abierta", "cerrada"]
 
 
+def validar_periodo(limite: date | None, inicio: date | None, fin: date | None) -> None:
+    """Coherencia entre cierre de postulaciones, inicio y término del voluntariado."""
+    if inicio and fin and inicio > fin:
+        raise ValueError("La fecha de término no puede ser anterior a la fecha de inicio")
+    if limite and inicio and limite > inicio:
+        raise ValueError("El voluntariado no puede comenzar antes del cierre de postulaciones")
+    if limite and fin and limite > fin:
+        raise ValueError("El cierre de postulaciones no puede ser posterior al término del voluntariado")
+
+
+class FechasBody(BaseModel):
+    """Modificar o aplazar las fechas de una oportunidad ya publicada."""
+
+    fecha_limite_postulacion: date | None = None
+    fecha_inicio_voluntariado: date | None = None
+    fecha_fin_voluntariado: date | None = None
+    motivo: str | None = Field(default=None, max_length=500)
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def _empty_to_none(cls, v: object) -> object:
+        if isinstance(v, str):
+            v = v.strip()
+            return v or None
+        return v
+
+    @model_validator(mode="after")
+    def _fechas(self) -> "FechasBody":
+        validar_periodo(self.fecha_limite_postulacion, self.fecha_inicio_voluntariado, self.fecha_fin_voluntariado)
+        return self
+
+
 class OportunidadBody(BaseModel):
     titulo: str = Field(min_length=3, max_length=200)
     descripcion: str = Field(min_length=10, max_length=500)
@@ -37,9 +69,7 @@ class OportunidadBody(BaseModel):
 
     @model_validator(mode="after")
     def _fechas(self) -> "OportunidadBody":
-        if self.fecha_inicio_voluntariado and self.fecha_fin_voluntariado:
-            if self.fecha_inicio_voluntariado > self.fecha_fin_voluntariado:
-                raise ValueError("La fecha de inicio debe ser anterior a la fecha de fin")
+        validar_periodo(self.fecha_limite_postulacion, self.fecha_inicio_voluntariado, self.fecha_fin_voluntariado)
         return self
 
 

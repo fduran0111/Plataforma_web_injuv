@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import FechasFields, { validarPeriodo } from "@/components/organizacion/FechasFields";
+import UbicacionFields from "@/components/UbicacionFields";
 import { Alert, Button, Field, Input, Modal, Select, Textarea } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
-import { AREAS_VOLUNTARIADO, REGIONES } from "@/lib/constants";
+import { AREAS_VOLUNTARIADO } from "@/lib/constants";
 import type { Oportunidad } from "@/lib/types";
 
 type FormState = {
@@ -89,6 +91,8 @@ export default function OportunidadForm({
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const errorFechas = validarPeriodo(form);
+    if (errorFechas) return setError(errorFechas);
     setError(null);
     setSaving(true);
     try {
@@ -160,24 +164,25 @@ export default function OportunidadForm({
         <Field label="Meta de postulantes" hint="Al alcanzarla se cierra la convocatoria">
           {(id) => <Input id={id} type="number" min={1} value={form.meta_postulantes} onChange={set("meta_postulantes")} />}
         </Field>
-        <Field label="Postulaciones hasta">
-          {(id) => <Input id={id} type="date" value={form.fecha_limite_postulacion} onChange={set("fecha_limite_postulacion")} />}
-        </Field>
-        <Field label="Fecha de inicio">
-          {(id) => <Input id={id} type="date" value={form.fecha_inicio_voluntariado} onChange={set("fecha_inicio_voluntariado")} />}
-        </Field>
-        <Field label="Fecha de término">
-          {(id) => <Input id={id} type="date" value={form.fecha_fin_voluntariado} onChange={set("fecha_fin_voluntariado")} />}
-        </Field>
-        <Field label="Región">
-          {(id) => <Select id={id} value={form.region} onChange={set("region")} options={REGIONES} placeholder="Selecciona" />}
-        </Field>
-        <Field label="Ciudad">
-          {(id) => <Input id={id} value={form.ciudad} onChange={set("ciudad")} />}
-        </Field>
-        <Field label="Comuna">
-          {(id) => <Input id={id} value={form.comuna} onChange={set("comuna")} />}
-        </Field>
+        <div className="sm:col-span-2 mt-2 border-t border-border pt-4">
+          <p className="text-sm font-semibold text-fg">Período del voluntariado</p>
+          <p className="mb-4 mt-0.5 text-xs text-fg-muted">
+            {oportunidad
+              ? "Para aplazar o mover fechas de un voluntariado ya publicado también puedes usar “Cambiar fechas”: avisa a los postulantes."
+              : "Las postulaciones deben cerrar antes de que empiece el voluntariado."}
+          </p>
+          <FechasFields
+            value={form}
+            onChange={(k, v) => setForm((f) => ({ ...f, [k]: v }))}
+            minHoy={!oportunidad}
+          />
+        </div>
+        <UbicacionFields
+          region={form.region}
+          ciudad={form.ciudad}
+          comuna={form.comuna}
+          onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+        />
         <div className="sm:col-span-2 mt-2 border-t border-border pt-4">
           <p className="mb-4 text-sm font-semibold text-fg">Responsable de la actividad (visible para postulantes)</p>
           <div className="grid gap-4 sm:grid-cols-2">
