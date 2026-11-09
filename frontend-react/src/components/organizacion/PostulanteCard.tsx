@@ -1,12 +1,12 @@
 "use client";
 
-import { Download, Eye, EyeOff, Mail, MapPin, MessageCircle, Phone, Send, Star, Upload } from "lucide-react";
+import { ChevronDown, ChevronUp, Download, Eye, EyeOff, FileCheck2, Mail, MapPin, MessageCircle, Phone, Send, Star, Upload } from "lucide-react";
 import { useRef, useState } from "react";
-import { Alert, Avatar, Badge, Button, buttonClass, Card, Checkbox, Modal, Select, Stars, Textarea } from "@/components/ui";
+import { Alert, Avatar, Badge, Button, buttonClass, Card, Checkbox, Modal, Select, Spinner, Stars, Textarea } from "@/components/ui";
 import { apiFetch, downloadFile, fileUrl } from "@/lib/api";
 import { ESTADO_POSTULACION_TONE, ESTADOS_POSTULACION, MOTIVOS_NO_SELECCION } from "@/lib/constants";
 import { formatDate, formatRut } from "@/lib/format";
-import type { Asistencia, Postulante } from "@/lib/types";
+import type { Asistencia, FichaPostulante, Postulante } from "@/lib/types";
 import { useToast } from "@/providers/ToastProvider";
 
 const ASISTENCIAS: Asistencia[] = ["No aplica", "SI", "No"];
@@ -46,6 +46,22 @@ export default function PostulanteCard({
   const [calificacion, setCalificacion] = useState<number | null>(p.calificacion_org);
   const [resenaPublica, setResenaPublica] = useState(p.resena_org_publica);
   const [horas, setHoras] = useState(String(p.horas_voluntariado || ""));
+  const [fichaOpen, setFichaOpen] = useState(false);
+  const [ficha, setFicha] = useState<FichaPostulante | null>(null);
+  const [fichaLoading, setFichaLoading] = useState(false);
+
+  async function toggleFicha() {
+    setFichaOpen((o) => !o);
+    if (ficha || fichaLoading) return;
+    setFichaLoading(true);
+    try {
+      setFicha(await apiFetch<FichaPostulante>(`/postulaciones/${p.id}/ficha`));
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setFichaLoading(false);
+    }
+  }
 
   async function run(action: () => Promise<Postulante>, okMessage?: string) {
     setBusy(true);
@@ -166,6 +182,9 @@ export default function PostulanteCard({
         <div className="flex flex-col items-end gap-1.5">
           <Badge tone={ESTADO_POSTULACION_TONE[p.estado] ?? "neutral"}>{p.estado}</Badge>
           <div className="flex gap-1.5">
+            <Button size="sm" variant="secondary" onClick={toggleFicha} aria-expanded={fichaOpen}>
+              {fichaOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />} Ficha
+            </Button>
             <a href={mailto} className={buttonClass("outline", "sm")} aria-label={`Enviar correo a ${p.usuario_nombre}`}>
               <Mail className="h-4 w-4" /> Correo
             </a>
@@ -180,6 +199,59 @@ export default function PostulanteCard({
           )}
         </div>
       </div>
+
+      {fichaOpen && (
+        <div className="mt-4 rounded-xl border border-border bg-page p-4">
+          {fichaLoading ? (
+            <Spinner label="Cargando ficha…" />
+          ) : !ficha ? (
+            <p className="text-sm text-fg-muted">No se pudo cargar la ficha del postulante.</p>
+          ) : (
+            <>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-fg-muted">Ficha del postulante</h3>
+              <dl className="mt-3 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  ["Correo", ficha.email],
+                  ["Teléfono", ficha.telefono],
+                  ["RUT", ficha.rut ? formatRut(ficha.rut) : ""],
+                  ["Región", ficha.region],
+                  ["Ciudad", ficha.ciudad],
+                  ["Comuna", ficha.comuna],
+                  ["Sexo", ficha.sexo],
+                  ["Edad", ficha.edad != null ? `${ficha.edad} años` : ""],
+                  ["Nacimiento", formatDate(ficha.fecha_nacimiento, "—")],
+                ]
+                  .filter(([, v]) => v)
+                  .map(([k, v]) => (
+                    <div key={k}>
+                      <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">{k}</dt>
+                      <dd className="text-fg">{v}</dd>
+                    </div>
+                  ))}
+              </dl>
+              <div className="mt-4 border-t border-border pt-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Certificados del postulante</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {ficha.certificados.length === 0 && (
+                    <p className="text-sm text-fg-muted">No ha subido certificados de antecedentes ni inhabilidades.</p>
+                  )}
+                  {ficha.certificados.map((c) => (
+                    <Button
+                      key={c.tipo}
+                      size="sm"
+                      variant="outline"
+                      onClick={() => downloadFile(`/postulaciones/${p.id}/certificado-personal/${c.tipo}`, `${c.tipo}.pdf`)}
+                    >
+                      <FileCheck2 className="h-4 w-4" /> {c.tipo === "antecedentes" ? "Antecedentes" : "Inhabilidades"}
+                      {c.fecha_emision ? ` (${formatDate(c.fecha_emision)})` : ""}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {p.rechazo_participacion && (
         <Alert tone="amber" className="mt-4">
@@ -263,16 +335,28 @@ export default function PostulanteCard({
             </Button>
           </>
         ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            loading={busy}
-            disabled={!!bloqueoCierre}
-            title={bloqueoCierre ?? undefined}
-            onClick={() => certRef.current?.click()}
-          >
-            <Upload className="h-4 w-4" /> Subir certificado PDF
-          </Button>
+          <>
+            <Button
+              size="sm"
+              variant="secondary"
+              loading={busy}
+              disabled={!!bloqueoCierre}
+              title={bloqueoCierre ?? "Genera el certificado con formato estándar INJUV"}
+              onClick={() => run(() => apiFetch(`/postulaciones/${p.id}/certificado/generar`, { method: "POST" }), "Certificado emitido")}
+            >
+              <FileCheck2 className="h-4 w-4" /> Emitir certificado
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              loading={busy}
+              disabled={!!bloqueoCierre}
+              title={bloqueoCierre ?? undefined}
+              onClick={() => certRef.current?.click()}
+            >
+              <Upload className="h-4 w-4" /> Subir PDF propio
+            </Button>
+          </>
         )}
         <Button size="sm" variant="ghost" disabled={!!bloqueoCierre} title={bloqueoCierre ?? undefined} onClick={() => setResenaOpen(true)}>
           <Star className="h-4 w-4" /> {p.resena_org || p.calificacion_org != null ? "Editar evaluación" : "Evaluar voluntario"}

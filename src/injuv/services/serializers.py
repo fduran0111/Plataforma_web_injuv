@@ -193,6 +193,28 @@ def postulacion_para_org(p: Postulacion, u: Usuario | None, op: Oportunidad | No
     return data
 
 
+def ficha_postulante(u: Usuario | None) -> dict[str, Any]:
+    """Datos del postulante que la organización puede revisar (sin incluir el nombre interno del archivo)."""
+    return {
+        "nombre": nombre_completo(u),
+        "email": (u.email if u else "") or "",
+        "telefono": (u.telefono if u else "") or "",
+        "region": (u.region if u else "") or "",
+        "ciudad": (u.ciudad if u else "") or "",
+        "comuna": (u.comuna if u else "") or "",
+        "sexo": (u.sexo if u else "") or "",
+        "fecha_nacimiento": u.fecha_nacimiento if u else None,
+        "edad": edad(u.fecha_nacimiento) if u else None,
+        "rut": (u.rut if u else "") or "",
+        "tiene_foto": bool(u and u.foto_perfil),
+        "certificados": [
+            {k: c.get(k) for k in ("tipo", "fecha_emision", "nombre_archivo", "subido_en")}
+            for c in _list(u.certificado_personales if u else [])
+            if isinstance(c, dict)
+        ],
+    }
+
+
 def noticia(n: Noticia, autor: Usuario | None = None) -> dict[str, Any]:
     return {
         "id": n.id,

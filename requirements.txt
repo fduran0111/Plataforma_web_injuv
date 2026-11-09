@@ -8,3 +8,4 @@ werkzeug>=3.0.0
 PyJWT>=2.8.0
 email-validator>=2.0.0
 python-multipart>=0.0.18
+reportlab>=5.1.0

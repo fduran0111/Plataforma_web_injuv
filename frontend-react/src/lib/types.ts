@@ -235,6 +235,22 @@ export type EstadisticasAdmin = {
   oportunidades_por_organizacion: Serie;
 };
 
+/** Ficha completa del postulante que ve la organización (GET /postulaciones/{id}/ficha). */
+export type FichaPostulante = {
+  nombre: string;
+  email: string;
+  telefono: string;
+  region: string;
+  ciudad: string;
+  comuna: string;
+  sexo: string;
+  fecha_nacimiento: string | null;
+  edad: number | null;
+  rut: string;
+  tiene_foto: boolean;
+  certificados: { tipo: string; fecha_emision: string | null; nombre_archivo: string | null; subido_en: string | null }[];
+};
+
 export type ResenaAdmin = PostulacionBase & {
   oportunidad_titulo: string;
   organizacion_nombre: string;
