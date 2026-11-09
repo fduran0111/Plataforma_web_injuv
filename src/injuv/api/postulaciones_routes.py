@@ -22,6 +22,7 @@ from injuv.schemas.postulaciones import (
     VisibilidadBody,
 )
 from injuv.security.rbac import is_admin
+from injuv.services import certificado as certificado_service
 from injuv.services import files, mailer, serializers
 from injuv.services.catalogo import ESTADO_DECLINADA, rechazo_participacion, voluntariado_terminado
 
@@ -102,6 +103,27 @@ def descargar_certificado(postulacion_id: int, db: DbSession, user: CurrentUser)
 
 
 # ---------- Organización ----------
+
+
+@router.get("/{postulacion_id}/ficha")
+def ficha_postulante(postulacion_id: int, db: DbSession, user: CurrentUser) -> dict[str, Any]:
+    """Datos y certificados personales del postulante, para la organización dueña."""
+    p, op, _ = _managed(db, postulacion_id, user)
+    return serializers.ficha_postulante(db.get(Usuario, p.usuario_id))
+
+
+@router.get("/{postulacion_id}/certificado-personal/{tipo}")
+def certificado_personal_postulante(postulacion_id: int, tipo: str, db: DbSession, user: CurrentUser) -> FileResponse:
+    """La organización descarga el certificado de antecedentes o inhabilidades del postulante."""
+    if tipo not in ("antecedentes", "inhabilidades"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tipo de certificado no válido")
+    p, op, _ = _managed(db, postulacion_id, user)
+    u = db.get(Usuario, p.usuario_id)
+    cert = next(
+        (c for c in (u.certificado_personales or []) if isinstance(c, dict) and c.get("tipo") == tipo),
+        None,
+    ) if u else None
+    return files.send("certificados_personales", cert.get("archivo") if cert else None, f"{tipo}_postulante_{p.id}.pdf")
 
 
 @router.patch("/{postulacion_id}/estado")
@@ -188,6 +210,21 @@ async def subir_certificado(
     p, op, _ = _managed(db, postulacion_id, user)
     _exigir_fin_de_ciclo(p, op, "subir el certificado")
     name, _, _ = await files.save_upload(certificado, CERT_FOLDER, f"certificado_{p.id}", {".pdf"}, 10)
+    files.delete(CERT_FOLDER, p.ruta_certificado_pdf)
+    p.ruta_certificado_pdf = name
+    p.tiene_certificado = True
+    return _touch_and_return(db, p)
+
+
+@router.post("/{postulacion_id}/certificado/generar")
+def generar_certificado(postulacion_id: int, db: DbSession, user: CurrentUser) -> dict[str, Any]:
+    """Emite el certificado estándar INJUV con los datos de la postulación (sin subir un PDF a mano)."""
+    p, op, org = _managed(db, postulacion_id, user)
+    _exigir_fin_de_ciclo(p, op, "emitir el certificado")
+    voluntario = db.get(Usuario, p.usuario_id)
+    pdf = certificado_service.generar_certificado(p, op, org, voluntario)
+    name = f"certificado_{p.id}_{datetime.now():%Y%m%d_%H%M%S}.pdf"
+    (files.folder_path(CERT_FOLDER) / name).write_bytes(pdf)
     files.delete(CERT_FOLDER, p.ruta_certificado_pdf)
     p.ruta_certificado_pdf = name
     p.tiene_certificado = True
