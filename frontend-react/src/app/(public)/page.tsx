@@ -50,6 +50,23 @@ import hero5 from "../../../public/fotos/voluntariado-5.jpg";
 import foto3 from "../../../public/fotos/voluntariado-3.jpg";
 import foto4 from "../../../public/fotos/voluntariado-4.jpg";
 import foto6 from "../../../public/fotos/voluntariado-6.jpg";
+import fotoHogar1 from "../../../public/Hogar de Cristo 1.jpg";
+import fotoHogar2 from "../../../public/Hogar de Cristo 2.jpg";
+import fotoHogar3 from "../../../public/Hogar de Cristo 3.jpg";
+import fotoHogar4 from "../../../public/Hogar de Cristo 4.jpg";
+import fotoHogar5 from "../../../public/Hogar de Cristo 5.jpg";
+import fotoFusupo1 from "../../../public/FUSUPO 1.jpg";
+import fotoFusupo2 from "../../../public/FUSUPO 2.jpg";
+import fotoFusupo3 from "../../../public/FUSUPO 3.jpg";
+import fotoCumbre from "../../../public/Cumbre del Voluntariado.jpg";
+import fotoVap1 from "../../../public/VAP 2026.jpg";
+import fotoVap2 from "../../../public/VAP 2026_2.jpg";
+import fotoAsgch from "../../../public/ASGCH.jpg";
+import fotoTerreno from "../../../public/IMG_1404.jpg";
+import fotoIncendio1 from "../../../public/incendios-chillan-1.jpg";
+import fotoIncendio2 from "../../../public/incendios-chillan-2.jpg";
+import fotoIncendio3 from "../../../public/incendios-chillan-3.jpg";
+import fotoExtra from "../../../public/voluntariado-extra.jpg";
 
 type Stats = { voluntarios: number; organizaciones: number; oportunidades: number; horas: number };
 
@@ -62,11 +79,23 @@ const PASOS = [
 
 const FOTOS_GALERIA = [
   { src: foto6, alt: "Dos jóvenes sostienen un letrero de Juventudes ¡presentes! junto a un bus" },
+  { src: fotoHogar2, alt: "Voluntarios en una jornada del Hogar de Cristo" },
+  { src: fotoFusupo2, alt: "Participantes en una actividad del programa FUSUPO" },
   { src: hero, alt: "Jóvenes voluntarios con chalecos INJUV reunidos en una jornada en terreno" },
   { src: foto3, alt: "Voluntarias y voluntarios con chalecos INJUV muestran sus diplomas del Día de la Solidaridad" },
+  { src: fotoHogar4, alt: "Grupo de voluntarios en una actividad del Hogar de Cristo" },
   { src: hero5, alt: "Jóvenes de distintos países posan con banderas y un letrero de INJUV" },
+  { src: fotoVap2, alt: "Voluntarios del programa VAP durante una jornada" },
   { src: foto4, alt: "Jóvenes reciben sus certificados en un auditorio" },
+  { src: fotoAsgch, alt: "Voluntarios trabajando en terreno" },
   { src: hero2, alt: "Grupo de mujeres jóvenes y adultas con credenciales posa en un salón junto a la bandera de Chile" },
+  { src: fotoHogar5, alt: "Voluntarios del Hogar de Cristo en una jornada comunitaria" },
+  { src: fotoFusupo3, alt: "Participantes del FUSUPO en una actividad grupal" },
+  { src: fotoIncendio1, alt: "Voluntarios de emergencia durante los incendios en Chillán" },
+  { src: fotoTerreno, alt: "Voluntarios durante un trabajo en terreno" },
+  { src: fotoIncendio2, alt: "Trabajo comunitario de voluntarios tras los incendios" },
+  { src: fotoExtra, alt: "Jóvenes voluntarios en una jornada de la plataforma" },
+  { src: fotoIncendio3, alt: "Voluntarios colaborando en la recuperación de Chillán" },
 ];
 
 const ICONO_AREA: Record<string, typeof UserPlus> = {
@@ -155,7 +184,7 @@ export default function HomePage() {
       <section id="portada" className="relative h-[calc(100svh-68px)] min-h-[600px] overflow-clip bg-tinta text-papel">
         <div className="absolute inset-0" aria-hidden>
           <div className="absolute inset-0">
-            {[hero, hero2, foto3, foto4, hero5].map((foto, i) => (
+            {[hero, fotoHogar1, fotoFusupo1, fotoCumbre, fotoVap1, fotoHogar3, hero2].map((foto, i) => (
               <div key={i} className="foto-ciclo absolute inset-0">
                 <Image
                   src={foto}
