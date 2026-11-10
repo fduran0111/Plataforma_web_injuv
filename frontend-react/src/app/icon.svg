@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#0f1b2d"/>
+  <text x="32" y="36" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700" letter-spacing="0.5" fill="#f4efe6">INJUV</text>
+  <rect x="14" y="43" width="15" height="4" rx="1" fill="#0052cc"/>
+  <rect x="29" y="43" width="21" height="4" rx="1" fill="#e3242b"/>
+</svg>

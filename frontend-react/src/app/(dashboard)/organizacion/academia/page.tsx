@@ -94,7 +94,7 @@ export default function AcademiaOrgPage() {
         {data?.map((d) => (
           <Card key={d.id} className="flex flex-col p-5">
             <div className="flex items-start justify-between gap-3">
-              <Badge tone="violet">{CATEGORIAS_ACADEMIA[d.categoria ?? ""] ?? d.categoria}</Badge>
+              <Badge tone="blue">{CATEGORIAS_ACADEMIA[d.categoria ?? ""] ?? d.categoria}</Badge>
               <Badge tone={ESTADO_DOC_TONE[d.estado ?? "pendiente"]}>{d.estado}</Badge>
             </div>
             <h3 className="mt-3 line-clamp-2 font-semibold text-fg">{d.nombre_archivo}</h3>

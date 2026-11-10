@@ -87,6 +87,7 @@ export function Field({
   hint,
   error,
   required,
+  reserve,
   children,
   className,
 }: {
@@ -94,6 +95,8 @@ export function Field({
   hint?: string;
   error?: string;
   required?: boolean;
+  /** Reserva la línea de ayuda/error aunque esté vacía, para que el aviso no empuje el layout. */
+  reserve?: boolean;
   children: (id: string) => React.ReactNode;
   className?: string;
 }) {
@@ -107,7 +110,11 @@ export function Field({
         </label>
       )}
       {children(id)}
-      {error ? <p className="text-xs text-brand-red">{error}</p> : hint && <p className="text-xs text-fg-muted">{hint}</p>}
+      {error || hint || reserve ? (
+        <p className={cn("text-xs", error ? "text-brand-red" : "text-fg-muted", !error && !hint && "invisible")}>
+          {error || hint || " "}
+        </p>
+      ) : null}
     </div>
   );
 }

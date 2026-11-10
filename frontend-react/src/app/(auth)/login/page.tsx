@@ -34,7 +34,7 @@ function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
+    <form onSubmit={onSubmit} className="hero-sigue mt-10 space-y-5">
       {error && <Alert>{error}</Alert>}
       <Field label="Correo electrónico" required>
         {(id) => (
@@ -53,7 +53,9 @@ function LoginForm() {
           />
         )}
       </Field>
-      <Checkbox label="Mantener sesión iniciada" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+      <div className="flex items-center justify-between gap-3">
+        <Checkbox label="Mantener sesión iniciada" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+      </div>
       <Button type="submit" size="lg" className="w-full" loading={submitting}>
         Iniciar sesión
       </Button>
@@ -64,14 +66,21 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <>
-      <h1 className="text-3xl font-bold tracking-tight text-fg">Bienvenido/a de vuelta</h1>
-      <p className="mb-8 mt-2 text-fg-muted">Ingresa para postular y seguir tus voluntariados.</p>
+      <h1 className="font-display text-[clamp(2.6rem,1.6rem+3.4vw,4.25rem)] leading-[0.95] tracking-[-0.03em] text-fg">
+        <span className="linea">
+          <span>Bienvenido/a</span>
+        </span>
+        <span className="linea">
+          <span>de vuelta</span>
+        </span>
+      </h1>
+      <p className="hero-sigue mt-4 text-fg-secondary">Ingresa para postular y seguir tus voluntariados.</p>
       <Suspense>
         <LoginForm />
       </Suspense>
-      <p className="mt-8 text-center text-sm text-fg-muted">
+      <p className="hero-sigue mt-6 text-center text-sm text-fg-muted">
         ¿No tienes cuenta?{" "}
-        <Link href="/registro" className="font-semibold text-brand hover:underline">
+        <Link href="/registro" className="font-semibold text-brand underline-offset-4 hover:underline">
           Regístrate gratis
         </Link>
       </p>

@@ -131,7 +131,7 @@ function Perfil({ user }: { user: Usuario }) {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       {/* Banner + franja con nombre (layout de referencia del template) */}
-      <section className="overflow-clip rounded-3xl border-[1.5px] border-tinta shadow-[6px_6px_0_0_var(--color-tinta)]">
+      <section className="overflow-clip rounded-3xl border border-tinta/15 shadow-[0_20px_40px_-18px_rgb(15_27_45/0.3)]">
         <div className="relative h-36 bg-brand sm:h-40" aria-hidden />
         <div className="relative bg-surface px-4 pb-5 pt-16 sm:px-8 sm:pt-4">
           <div className="absolute -top-12 left-6 sm:-top-14 sm:left-8">
