@@ -8,7 +8,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 
-from injuv.api.deps import AdminUser, DbSession, OptionalUser, OwnOrganization
+from injuv.api.deps import AdminUser, DbSession, MemberOrganization, OptionalUser
 from injuv.db.models import AcademiaDocumento, BibliotecaDocumento, BibliotecaTematica, Organizacion
 from injuv.security.rbac import is_admin
 from injuv.services import files, serializers
@@ -155,7 +155,7 @@ def admin_estado_academia(
 
 
 @router.get("/organizaciones/mia/academia")
-def org_listar(db: DbSession, org: OwnOrganization) -> list[dict[str, Any]]:
+def org_listar(db: DbSession, org: MemberOrganization) -> list[dict[str, Any]]:
     docs = db.scalars(
         select(AcademiaDocumento).where(AcademiaDocumento.organizacion_id == org.id).order_by(AcademiaDocumento.created_at.desc())
     )
@@ -172,7 +172,7 @@ def _org_doc(db: DbSession, org: Organizacion, doc_id: int) -> AcademiaDocumento
 @router.post("/organizaciones/mia/academia", status_code=status.HTTP_201_CREATED)
 async def org_subir(
     db: DbSession,
-    org: OwnOrganization,
+    org: MemberOrganization,
     archivo: UploadFile = File(...),
     nombre_archivo: str = Form(..., min_length=2, max_length=255),
     descripcion: str = Form(..., min_length=5, max_length=500),
@@ -207,7 +207,7 @@ async def org_subir(
 async def org_editar(
     doc_id: int,
     db: DbSession,
-    org: OwnOrganization,
+    org: MemberOrganization,
     nombre_archivo: str = Form(..., min_length=2, max_length=255),
     descripcion: str = Form(..., min_length=5, max_length=500),
     categoria: str = Form(...),
@@ -230,7 +230,7 @@ async def org_editar(
 
 
 @router.delete("/organizaciones/mia/academia/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
-def org_eliminar(doc_id: int, db: DbSession, org: OwnOrganization) -> None:
+def org_eliminar(doc_id: int, db: DbSession, org: MemberOrganization) -> None:
     doc = _org_doc(db, org, doc_id)
     files.delete(FOLDERS["academia"], doc.archivo_filename)
     db.delete(doc)

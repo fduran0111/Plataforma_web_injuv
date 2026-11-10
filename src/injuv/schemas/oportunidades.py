@@ -58,6 +58,7 @@ class OportunidadBody(BaseModel):
     responsable_email: EmailStr | None = None
     responsable_email_institucional: EmailStr | None = None
     responsable_telefono: str | None = Field(default=None, max_length=30)
+    encargados_ids: list[int] = Field(default_factory=list, max_length=20)
 
     @field_validator("*", mode="before")
     @classmethod

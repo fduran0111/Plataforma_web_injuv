@@ -210,7 +210,7 @@ function Contenido({ user }: { user: Usuario }) {
     return (
       <EmptyState
         icon={Building2}
-        title={`Ya administras ${user.organizacion.nombre ?? "una organización"}`}
+        title={`${user.organizacion.rol === "miembro" ? "Ya eres miembro de" : "Ya administras"} ${user.organizacion.nombre ?? "una organización"}`}
         description="Puedes gestionar tus voluntariados y postulantes desde el panel."
         action={
           <Button onClick={() => router.push("/organizacion")}>Ir al panel de organización</Button>

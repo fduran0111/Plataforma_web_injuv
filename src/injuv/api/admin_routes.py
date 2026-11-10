@@ -155,10 +155,13 @@ def cambiar_rol(user_id: int, body: RolBody, db: DbSession, admin: AdminUser) ->
                 if anterior and anterior.rol == "organizacion":
                     anterior.rol = "user"
             org.id_usuario_org = u.id
-        elif not actual:
+            u.organizacion_afiliada = None
+        elif not actual and not u.organizacion_afiliada:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Asigna una organización al usuario")
     elif body.rol == "user" and actual:
         actual.id_usuario_org = None
+    if body.rol != "organizacion":
+        u.organizacion_afiliada = None
     u.rol = body.rol
     db.commit()
     org = db.scalar(select(Organizacion).where(Organizacion.id_usuario_org == u.id))
