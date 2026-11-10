@@ -5,17 +5,20 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import PostulanteCard from "@/components/organizacion/PostulanteCard";
-import { Badge, Button, Card, EmptyState, ErrorState, Input, Modal, Select, Spinner, Tabs, Textarea } from "@/components/ui";
+import { Alert, Badge, Button, Card, EmptyState, ErrorState, Input, Modal, Select, Spinner, Tabs, Textarea } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { apiFetch } from "@/lib/api";
 import { ESTADOS_POSTULACION } from "@/lib/constants";
 import { formatDate } from "@/lib/format";
+import { puedeGestionarOportunidad } from "@/lib/permisos";
 import type { Oportunidad, Postulante } from "@/lib/types";
+import { useAuth } from "@/providers/AuthProvider";
 import { useToast } from "@/providers/ToastProvider";
 
 export default function PostulantesPage() {
   const { id } = useParams<{ id: string }>();
   const toast = useToast();
+  const { user } = useAuth();
   const op = useApi<Oportunidad>(`/oportunidades/${id}`);
   const postulantes = useApi<Postulante[]>(`/oportunidades/${id}/postulaciones`);
   const [estadoFiltro, setEstadoFiltro] = useState("todos");
@@ -51,6 +54,7 @@ export default function PostulantesPage() {
   if (op.error || postulantes.error)
     return <ErrorState message={op.error ?? postulantes.error ?? "Error"} onRetry={() => { op.reload(); postulantes.reload(); }} />;
   const o = op.data!;
+  const soloLectura = !puedeGestionarOportunidad(user, o);
 
   return (
     <>
@@ -91,14 +95,22 @@ export default function PostulantesPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" disabled={!postulantes.data?.length} onClick={() => setCorreoOpen(true)}>
-            <Mail className="h-4 w-4" /> Correo masivo
-          </Button>
+          {!soloLectura && (
+            <Button variant="outline" size="sm" disabled={!postulantes.data?.length} onClick={() => setCorreoOpen(true)}>
+              <Mail className="h-4 w-4" /> Correo masivo
+            </Button>
+          )}
           <Link href={`/oportunidades/${o.id}`} className="text-sm font-medium text-brand hover:underline">
             Ver página pública
           </Link>
         </div>
       </div>
+
+      {soloLectura && (
+        <Alert tone="blue" className="mt-4">
+          Estás viendo este voluntariado en <strong>modo lectura</strong>. Solo sus encargados y el administrador de la organización pueden cambiar estados, asistencia, horas y certificados.
+        </Alert>
+      )}
 
       <div className="mt-6">
         <Tabs
@@ -119,7 +131,7 @@ export default function PostulantesPage() {
             description={estadoFiltro === "todos" ? "Comparte el enlace público del voluntariado para atraer postulantes." : undefined}
           />
         ) : (
-          lista.map((p) => <PostulanteCard key={p.id} p={p} oportunidadTitulo={o.titulo} onChanged={(next) => postulantes.setData((prev) => (prev ?? []).map((x) => (x.id === next.id ? { ...x, ...next } : x)))} />)
+          lista.map((p) => <PostulanteCard key={p.id} p={p} oportunidadTitulo={o.titulo} soloLectura={soloLectura} onChanged={(next) => postulantes.setData((prev) => (prev ?? []).map((x) => (x.id === next.id ? { ...x, ...next } : x)))} />)
         )}
       </div>
 

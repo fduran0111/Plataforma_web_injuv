@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 
-from injuv.api.deps import CurrentUser, DbSession
+from injuv.api.deps import CurrentUser, DbSession, organizacion_de_usuario
 from injuv.db.models import Organizacion, Usuario
 from injuv.schemas.auth import ChangePasswordBody, LoginBody, RegisterBody
 from injuv.security.jwt_tokens import create_access_token
@@ -19,9 +19,9 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 def session_payload(db: DbSession, user: Usuario) -> dict[str, Any]:
-    org = db.scalar(select(Organizacion).where(Organizacion.id_usuario_org == user.id))
+    org, rol_org = organizacion_de_usuario(db, user)
     data = serializers.usuario(user)
-    data["organizacion"] = {"id": org.id, "nombre": org.nombre} if org else None
+    data["organizacion"] = {"id": org.id, "nombre": org.nombre, "rol": rol_org} if org else None
     return data
 
 

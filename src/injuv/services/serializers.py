@@ -121,6 +121,7 @@ def oportunidad(op: Oportunidad, org: Organizacion | None = None, num_postulacio
         "ciudad": op.ciudad_opor or (org.ciudad if org else "") or "",
         "comuna": op.comuna_opor or (org.comuna if org else "") or "",
         "tipo_de_voluntariado": op.tipo_de_voluntariado or "",
+        "encargados_ids": [x for x in (op.encargados_ids or []) if isinstance(x, int)],
         "num_postulaciones": num_postulaciones,
         "created_at": op.created_at,
     }

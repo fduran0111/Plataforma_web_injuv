@@ -7,6 +7,7 @@ import { apiFetch, downloadFile, fileUrl } from "@/lib/api";
 import { ESTADO_POSTULACION_TONE, ESTADOS_POSTULACION, MOTIVOS_NO_SELECCION } from "@/lib/constants";
 import { formatDate, formatRut } from "@/lib/format";
 import type { Asistencia, FichaPostulante, Postulante } from "@/lib/types";
+import { useAuth } from "@/providers/AuthProvider";
 import { useToast } from "@/providers/ToastProvider";
 
 const ASISTENCIAS: Asistencia[] = ["No aplica", "SI", "No"];
@@ -24,10 +25,13 @@ export default function PostulanteCard({
   p,
   oportunidadTitulo,
   onChanged,
+  soloLectura = false,
 }: {
   p: Postulante;
   oportunidadTitulo: string;
   onChanged: (p: Postulante) => void;
+  /** Integrante que no es encargado del voluntariado: ve todo, pero no modifica. */
+  soloLectura?: boolean;
 }) {
   const asuntoCorreo = `Actualización estado de postulación: ${oportunidadTitulo}`;
   const mailto = `mailto:${p.usuario_email}?subject=${encodeURIComponent(asuntoCorreo)}`;
@@ -36,6 +40,8 @@ export default function PostulanteCard({
     ? `https://wa.me/${waNumero}?text=${encodeURIComponent(`Hola ${p.usuario_nombre}, te escribimos por tu postulación a "${oportunidadTitulo}".`)}`
     : null;
   const toast = useToast();
+  const { user } = useAuth();
+  const esMiembro = user?.organizacion?.rol === "miembro";
   const certRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [estadoModal, setEstadoModal] = useState<string | null>(null);
@@ -268,6 +274,7 @@ export default function PostulanteCard({
         </p>
       )}
 
+      <fieldset disabled={soloLectura} className="m-0 min-w-0 border-0 p-0">
       <div className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-4">
         <Select
           aria-label="Estado"
@@ -314,7 +321,18 @@ export default function PostulanteCard({
           </Button>
         </div>
       </div>
+      </fieldset>
 
+      {soloLectura ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+          {p.tiene_certificado && (
+            <Button size="sm" variant="secondary" onClick={() => downloadFile(`/postulaciones/${p.id}/certificado`, "certificado_voluntariado.pdf")}>
+              <Download className="h-4 w-4" /> Ver certificado
+            </Button>
+          )}
+          <span className="text-xs text-fg-muted">Solo lectura: no eres encargado de este voluntariado.</span>
+        </div>
+      ) : (
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
         <input ref={certRef} type="file" accept="application/pdf" className="hidden" onChange={(e) => subirCertificado(e.target.files?.[0])} />
         {p.tiene_certificado ? (
@@ -361,7 +379,7 @@ export default function PostulanteCard({
         <Button size="sm" variant="ghost" disabled={!!bloqueoCierre} title={bloqueoCierre ?? undefined} onClick={() => setResenaOpen(true)}>
           <Star className="h-4 w-4" /> {p.resena_org || p.calificacion_org != null ? "Editar evaluación" : "Evaluar voluntario"}
         </Button>
-        {p.resena_usuario && (
+        {p.resena_usuario && !esMiembro && (
           <Button size="sm" variant="ghost" loading={busy} onClick={toggleVisibilidad}>
             {p.resena_usuario_publica ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             {p.resena_usuario_publica ? "Ocultar reseña" : "Publicar reseña"}
@@ -371,6 +389,7 @@ export default function PostulanteCard({
           <span className="text-xs text-fg-muted">Certificado y evaluación: {bloqueoCierre.toLowerCase()}.</span>
         )}
       </div>
+      )}
 
       {(p.resena_usuario || p.resena_org || p.calificacion_org != null) && (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">

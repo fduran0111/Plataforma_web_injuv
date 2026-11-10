@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 
 from injuv.api.deps import CurrentUser, DbSession
-from injuv.api.oportunidades_routes import ensure_can_manage
+from injuv.api.oportunidades_routes import ensure_can_manage, ensure_can_view
 from injuv.db.models import Oportunidad, Organizacion, Postulacion, Usuario
 from injuv.schemas.postulaciones import (
     AsistenciaBody,
@@ -98,7 +98,7 @@ def resena_usuario(postulacion_id: int, body: ResenaUsuarioBody, db: DbSession, 
 def descargar_certificado(postulacion_id: int, db: DbSession, user: CurrentUser) -> FileResponse:
     p, op = _get(db, postulacion_id)
     if p.usuario_id != user.id:
-        ensure_can_manage(db, op, user)
+        ensure_can_view(db, op, user)
     return files.send(CERT_FOLDER, p.ruta_certificado_pdf, f"certificado_voluntariado_{p.id}.pdf")
 
 
@@ -108,7 +108,8 @@ def descargar_certificado(postulacion_id: int, db: DbSession, user: CurrentUser)
 @router.get("/{postulacion_id}/ficha")
 def ficha_postulante(postulacion_id: int, db: DbSession, user: CurrentUser) -> dict[str, Any]:
     """Datos y certificados personales del postulante, para la organización dueña."""
-    p, op, _ = _managed(db, postulacion_id, user)
+    p, op = _get(db, postulacion_id)
+    ensure_can_view(db, op, user)
     return serializers.ficha_postulante(db.get(Usuario, p.usuario_id))
 
 
@@ -117,7 +118,8 @@ def certificado_personal_postulante(postulacion_id: int, tipo: str, db: DbSessio
     """La organización descarga el certificado de antecedentes o inhabilidades del postulante."""
     if tipo not in ("antecedentes", "inhabilidades"):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tipo de certificado no válido")
-    p, op, _ = _managed(db, postulacion_id, user)
+    p, op = _get(db, postulacion_id)
+    ensure_can_view(db, op, user)
     u = db.get(Usuario, p.usuario_id)
     cert = next(
         (c for c in (u.certificado_personales or []) if isinstance(c, dict) and c.get("tipo") == tipo),
@@ -194,8 +196,9 @@ def resena_org(postulacion_id: int, body: ResenaOrgBody, db: DbSession, user: Cu
 
 @router.patch("/{postulacion_id}/visibilidad-resena")
 def visibilidad_resena_usuario(postulacion_id: int, body: VisibilidadBody, db: DbSession, user: CurrentUser) -> dict[str, Any]:
-    """La organización (o admin) decide si la reseña del voluntario se muestra públicamente."""
-    p, _, _ = _managed(db, postulacion_id, user)
+    """El administrador de la organización (o admin INJUV) decide si la reseña del voluntario es pública."""
+    p, op = _get(db, postulacion_id)
+    ensure_can_manage(db, op, user, solo_admin_org=True)
     p.resena_usuario_publica = body.es_publica
     return _touch_and_return(db, p)
 
@@ -268,5 +271,5 @@ def enviar_certificado(postulacion_id: int, body: EnviarCertificadoBody, db: DbS
 def detalle(postulacion_id: int, db: DbSession, user: CurrentUser) -> dict[str, Any]:
     p, op = _get(db, postulacion_id)
     if p.usuario_id != user.id and not is_admin(user.rol):
-        ensure_can_manage(db, op, user)
+        ensure_can_view(db, op, user)
     return serializers.postulacion_para_usuario(p, op, db.get(Organizacion, op.organizacion_id))

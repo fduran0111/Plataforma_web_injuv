@@ -151,6 +151,7 @@ function Perfil({ user }: { user: Usuario }) {
                   title="Ver perfil de la organización"
                 >
                   <Building2 className="h-3.5 w-3.5" /> {user.organizacion.nombre ?? "Organización"}
+                  <span className="font-normal text-fg-muted">· {user.organizacion.rol === "miembro" ? "Miembro" : "Administrador"}</span>
                 </Link>
               )}
             </div>

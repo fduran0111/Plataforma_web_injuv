@@ -25,7 +25,8 @@ export type Usuario = {
   foto_version: string | null;
   certificados_personales: CertificadoPersonal[];
   created_at: string | null;
-  organizacion: { id: number; nombre: string | null } | null;
+  /** `rol`: "admin" = administrador de la organización (todo), "miembro" = solo voluntariados y academia. */
+  organizacion: { id: number; nombre: string | null; rol?: "admin" | "miembro" } | null;
 };
 
 export type EstadoOportunidad = "activa" | "abierta" | "cerrada";
@@ -53,6 +54,8 @@ export type Oportunidad = {
   ciudad: string;
   comuna: string;
   tipo_de_voluntariado: string;
+  /** Integrantes de la organización a cargo (pueden gestionar el voluntariado y sus postulantes). */
+  encargados_ids: number[];
   num_postulaciones: number;
   created_at: string | null;
   mi_postulacion?: { id: number; estado: string } | null;

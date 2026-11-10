@@ -71,3 +71,7 @@ class SolicitudOrganizacionBody(BaseModel):
     redes_sociales: list[str] = Field(default_factory=list, max_length=10)
 
     _strip = field_validator("rut", "sitio_web", mode="before")(classmethod(lambda cls, v: _clean(v)))
+
+
+class MiembroBody(BaseModel):
+    email: EmailStr

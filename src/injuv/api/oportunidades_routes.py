@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 from sqlalchemy import and_, func, or_, select, update
 
-from injuv.api.deps import CurrentUser, DbSession, OptionalUser, OwnOrganization
+from injuv.api.deps import CurrentUser, DbSession, MemberOrganization, OptionalUser
 from injuv.db.models import Oportunidad, Organizacion, Postulacion, Usuario
 from injuv.schemas.oportunidades import CorreoMasivoBody, EstadoOportunidadBody, FechasBody, OportunidadBody
 from injuv.security.rbac import is_admin, normalize_role
@@ -62,12 +62,35 @@ def get_oportunidad_or_404(db: DbSession, oportunidad_id: int) -> Oportunidad:
     return op
 
 
-def ensure_can_manage(db: DbSession, op: Oportunidad, user: Usuario) -> Organizacion | None:
-    """Admin o la organización dueña de la oportunidad."""
+def ensure_can_manage(db: DbSession, op: Oportunidad, user: Usuario, solo_admin_org: bool = False) -> Organizacion | None:
+    """Admin INJUV o integrante de la organización dueña (miembros incluidos salvo `solo_admin_org`)."""
     org = db.get(Organizacion, op.organizacion_id)
     if is_admin(user.rol) or (org and org.id_usuario_org == user.id):
         return org
+    if org and not solo_admin_org and user.organizacion_afiliada == org.id and user.id in (op.encargados_ids or []):
+        return org
+    raise HTTPException(
+        status.HTTP_403_FORBIDDEN,
+        "Solo los encargados de este voluntariado o el administrador de la organización pueden modificarlo",
+    )
+
+
+def ensure_can_view(db: DbSession, op: Oportunidad, user: Usuario) -> Organizacion | None:
+    """Lectura del voluntariado y sus postulantes: cualquier integrante de la organización (o admin INJUV)."""
+    org = db.get(Organizacion, op.organizacion_id)
+    if is_admin(user.rol) or (org and (org.id_usuario_org == user.id or user.organizacion_afiliada == org.id)):
+        return org
     raise HTTPException(status.HTTP_403_FORBIDDEN, "No tienes permisos sobre esta oportunidad")
+
+
+def _encargados_validos(db: DbSession, org: Organizacion, ids: list[int]) -> list[int]:
+    """Solo integrantes de la organización (administrador o miembros), sin repetir."""
+    validos = {org.id_usuario_org} if org.id_usuario_org else set()
+    validos |= set(db.scalars(select(Usuario.id).where(Usuario.organizacion_afiliada == org.id)))
+    invalidos = [i for i in ids if i not in validos]
+    if invalidos:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Los encargados deben ser integrantes de la organización")
+    return list(dict.fromkeys(ids))
 
 
 def _serialize(db: DbSession, op: Oportunidad) -> dict[str, Any]:
@@ -116,7 +139,7 @@ def listar(
 
 
 @router.get("/mias")
-def listar_de_mi_organizacion(db: DbSession, org: OwnOrganization) -> list[dict[str, Any]]:
+def listar_de_mi_organizacion(db: DbSession, org: MemberOrganization) -> list[dict[str, Any]]:
     return listar(db, estado="todas", organizacion_id=org.id, limit=500)
 
 
@@ -150,10 +173,14 @@ def _no_en_el_pasado(valores: dict[str, date | None]) -> None:
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-def crear(body: OportunidadBody, db: DbSession, org: OwnOrganization) -> dict[str, Any]:
+def crear(body: OportunidadBody, db: DbSession, org: MemberOrganization, user: CurrentUser) -> dict[str, Any]:
     _no_en_el_pasado({c: getattr(body, c) for c in _CAMPOS_FECHA})
     op = Oportunidad(organizacion_id=org.id, estado="activa", created_at=datetime.now())
     _apply_body(op, body)
+    encargados = _encargados_validos(db, org, body.encargados_ids)
+    if user.id != org.id_usuario_org and user.id not in encargados:
+        encargados.append(user.id)  # un miembro que publica queda a cargo de su voluntariado
+    op.encargados_ids = encargados
     db.add(op)
     db.commit()
     db.refresh(op)
@@ -165,10 +192,12 @@ def actualizar(
     oportunidad_id: int, body: OportunidadBody, db: DbSession, user: CurrentUser, background: BackgroundTasks
 ) -> dict[str, Any]:
     op = get_oportunidad_or_404(db, oportunidad_id)
-    ensure_can_manage(db, op, user)
+    org = ensure_can_manage(db, op, user)
     cambios = _cambios_de_fecha(op, {c: getattr(body, c) for c in _CAMPOS_FECHA})
     _no_en_el_pasado({c: nuevo for c, (_, nuevo) in cambios.items()})
+    encargados = _encargados_validos(db, org, body.encargados_ids) if org else body.encargados_ids
     _apply_body(op, body)
+    op.encargados_ids = encargados
     db.commit()
     _avisar_cambio_fechas(db, op, cambios, None, background)
     return _serialize(db, op)
@@ -262,7 +291,7 @@ def eliminar(oportunidad_id: int, db: DbSession, user: CurrentUser) -> None:
 @router.get("/{oportunidad_id}/postulaciones")
 def postulantes(oportunidad_id: int, db: DbSession, user: CurrentUser, estado: str | None = None) -> list[dict[str, Any]]:
     op = get_oportunidad_or_404(db, oportunidad_id)
-    ensure_can_manage(db, op, user)
+    ensure_can_view(db, op, user)
     stmt = (
         select(Postulacion, Usuario)
         .outerjoin(Usuario, Usuario.id == Postulacion.usuario_id)
