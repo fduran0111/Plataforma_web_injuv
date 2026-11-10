@@ -20,6 +20,17 @@ function rutValido(rut: string): boolean {
   return clean.slice(-1) === (dv === 11 ? "0" : dv === 10 ? "K" : String(dv));
 }
 
+function Seccion({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h2 className="border-b-[1.5px] border-tinta/15 pb-2 text-xs font-semibold uppercase tracking-[0.14em] text-fg-muted">
+        {titulo}
+      </h2>
+      <div className="mt-4 space-y-4">{children}</div>
+    </div>
+  );
+}
+
 export default function RegistroPage() {
   const { register } = useAuth();
   const router = useRouter();
@@ -55,50 +66,58 @@ export default function RegistroPage() {
 
   return (
     <>
-      <h1 className="text-3xl font-bold tracking-tight text-fg">Crea tu cuenta</h1>
-      <p className="mb-8 mt-2 text-fg-muted">Únete a la red de voluntariado juvenil de Chile.</p>
-      <form onSubmit={onSubmit} className="space-y-4">
+      <h1 className="font-display text-[clamp(2.4rem,1.4rem+3vw,3.75rem)] leading-[0.95] tracking-[-0.03em] text-fg">
+        <span className="linea">
+          <span>Crea tu cuenta</span>
+        </span>
+      </h1>
+      <p className="hero-sigue mt-4 max-w-[38ch] text-fg-secondary">Regístrate para postular a voluntariados y certificar tus horas.</p>
+      <form onSubmit={onSubmit} className="hero-sigue mt-10 space-y-7">
         {error && <Alert>{error}</Alert>}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Nombre" required>
-            {(id) => <Input id={id} required autoComplete="given-name" value={form.nombre} onChange={set("nombre")} />}
+        <Seccion titulo="Tus datos">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Nombre" required>
+              {(id) => <Input id={id} required autoComplete="given-name" value={form.nombre} onChange={set("nombre")} />}
+            </Field>
+            <Field label="Apellido" required>
+              {(id) => <Input id={id} required autoComplete="family-name" value={form.apellido} onChange={set("apellido")} />}
+            </Field>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="RUT" required error={rutError} reserve>
+              {(id) => (
+                <Input
+                  id={id}
+                  required
+                  placeholder="12.345.678-9"
+                  value={form.rut}
+                  onChange={(e) => setForm((f) => ({ ...f, rut: formatRut(e.target.value) }))}
+                />
+              )}
+            </Field>
+            <Field label="Fecha de nacimiento" required hint="Debes tener al menos 15 años">
+              {(id) => <Input id={id} type="date" required value={form.fecha_nacimiento} onChange={set("fecha_nacimiento")} />}
+            </Field>
+          </div>
+        </Seccion>
+        <Seccion titulo="Tu cuenta">
+          <Field label="Correo electrónico" required>
+            {(id) => <Input id={id} type="email" required autoComplete="email" value={form.email} onChange={set("email")} />}
           </Field>
-          <Field label="Apellido" required>
-            {(id) => <Input id={id} required autoComplete="family-name" value={form.apellido} onChange={set("apellido")} />}
+          <Field label="Contraseña" required hint="Mínimo 8 caracteres">
+            {(id) => <Input id={id} type="password" required minLength={8} autoComplete="new-password" value={form.password} onChange={set("password")} />}
           </Field>
-        </div>
-        <Field label="Correo electrónico" required>
-          {(id) => <Input id={id} type="email" required autoComplete="email" value={form.email} onChange={set("email")} />}
-        </Field>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="RUT" required error={rutError}>
-            {(id) => (
-              <Input
-                id={id}
-                required
-                placeholder="12.345.678-9"
-                value={form.rut}
-                onChange={(e) => setForm((f) => ({ ...f, rut: formatRut(e.target.value) }))}
-              />
-            )}
+          <Field label="Confirmar contraseña" required error={confirmError} reserve>
+            {(id) => <Input id={id} type="password" required autoComplete="new-password" value={form.confirm} onChange={set("confirm")} />}
           </Field>
-          <Field label="Fecha de nacimiento" required hint="Debes tener al menos 15 años">
-            {(id) => <Input id={id} type="date" required value={form.fecha_nacimiento} onChange={set("fecha_nacimiento")} />}
-          </Field>
-        </div>
-        <Field label="Contraseña" required hint="Mínimo 8 caracteres">
-          {(id) => <Input id={id} type="password" required minLength={8} autoComplete="new-password" value={form.password} onChange={set("password")} />}
-        </Field>
-        <Field label="Confirmar contraseña" required error={confirmError}>
-          {(id) => <Input id={id} type="password" required autoComplete="new-password" value={form.confirm} onChange={set("confirm")} />}
-        </Field>
+        </Seccion>
         <Button type="submit" size="lg" className="w-full" loading={submitting}>
           Crear cuenta
         </Button>
       </form>
-      <p className="mt-8 text-center text-sm text-fg-muted">
+      <p className="hero-sigue mt-6 text-center text-sm text-fg-muted">
         ¿Ya tienes cuenta?{" "}
-        <Link href="/login" className="font-semibold text-brand hover:underline">
+        <Link href="/login" className="font-semibold text-brand underline-offset-4 hover:underline">
           Inicia sesión
         </Link>
       </p>

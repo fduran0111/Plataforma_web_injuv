@@ -304,8 +304,8 @@ export default function HomePage() {
             </p>
             {!user && (
               <div>
-                <LinkButton href="/registro" variant="secondary" size="lg" className="mt-10">
-                  Crear mi cuenta <ArrowRight className="h-4 w-4" />
+                <LinkButton href="/login" variant="secondary" size="lg" className="mt-10">
+                  Iniciar sesión <ArrowRight className="h-4 w-4" />
                 </LinkButton>
               </div>
             )}

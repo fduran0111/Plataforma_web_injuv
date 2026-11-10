@@ -1,7 +1,7 @@
 "use client";
 
 import { ExternalLink, HeartHandshake, Mail, MessageSquareQuote, Star, Users } from "lucide-react";
-import { LinkButton, PageHeader, Spinner, StatCard } from "@/components/ui";
+import { Card, LinkButton, PageHeader, Spinner, StatCard } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { formatNumber } from "@/lib/format";
 import type { Oportunidad, Organizacion } from "@/lib/types";
@@ -51,12 +51,12 @@ export default function OrganizacionResumenPage() {
       </div>
 
       <div className="mt-8 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-border bg-surface p-6">
+        <Card className="p-6">
           <h2 className="font-semibold text-fg">Voluntariados abiertos</h2>
           {!abiertas.length ? (
             <p className="mt-3 text-sm text-fg-muted">No tienes voluntariados abiertos. Publica uno para empezar a recibir postulaciones.</p>
           ) : (
-            <ul className="mt-3 divide-y divide-border">
+            <ul className="mt-3 divide-y divide-tinta/10">
               {abiertas.slice(0, 5).map((op) => (
                 <li key={op.id} className="flex items-center justify-between gap-3 py-3 text-sm">
                   <a href={`/organizacion/oportunidades/${op.id}`} className="truncate font-medium text-fg hover:text-brand">
@@ -67,8 +67,8 @@ export default function OrganizacionResumenPage() {
               ))}
             </ul>
           )}
-        </div>
-        <div className="rounded-2xl border border-border bg-surface p-6">
+        </Card>
+        <Card className="p-6">
           <h2 className="flex items-center gap-2 font-semibold text-fg">
             <MessageSquareQuote className="h-4 w-4 text-brand" /> Recomendación
           </h2>
@@ -76,7 +76,7 @@ export default function OrganizacionResumenPage() {
             Mantén actualizado el perfil de tu organización con logo, descripción y certificaciones: los voluntarios confían más en organizaciones
             verificadas. Después de cada actividad, registra la asistencia y las horas para emitir los certificados.
           </p>
-        </div>
+        </Card>
       </div>
     </>
   );

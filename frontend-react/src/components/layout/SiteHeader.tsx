@@ -94,14 +94,9 @@ export default function SiteHeader() {
             (user ? (
               <UserMenu />
             ) : (
-              <>
-                <LinkButton href="/login" variant="ghost" size="sm" className="max-sm:hidden">
-                  Iniciar sesión
-                </LinkButton>
-                <LinkButton href="/registro" size="sm">
-                  Crear cuenta
-                </LinkButton>
-              </>
+              <LinkButton href="/login" size="sm">
+                Iniciar sesión
+              </LinkButton>
             ))}
           <button
             type="button"
@@ -131,12 +126,6 @@ export default function SiteHeader() {
               {l.label}
             </Link>
           ))}
-          {!user && (
-            <Link href="/login" onClick={() => setOpen(false)} className="flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium text-fg-secondary sm:hidden">
-              <span className="h-[3px] w-4 rounded-full bg-tinta/20" aria-hidden />
-              Iniciar sesión
-            </Link>
-          )}
         </nav>
       )}
       <div className="flex h-1">

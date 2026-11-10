@@ -11,7 +11,7 @@ const FAQ: FaqEntry[] = [
   {
     keywords: ["registro", "registrarse", "crear cuenta", "inscribirse", "darse de alta", "cuenta"],
     response:
-      'El registro es gratuito. Haz clic en "Crear cuenta" en la parte superior de la página y completa tus datos: nombre, correo, RUT, fecha de nacimiento y una contraseña.',
+      'El registro es gratuito. Entra a "Iniciar sesión" y sigue el enlace "Regístrate gratis"; luego completa tus datos: nombre, correo, RUT, fecha de nacimiento y una contraseña.',
   },
   {
     keywords: ["empezar", "comenzar", "iniciar", "cómo empezar", "primeros pasos", "por dónde empezar"],
