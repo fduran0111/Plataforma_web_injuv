@@ -1,24 +1,29 @@
 "use client";
 
-import { CalendarDays, HeartHandshake, MapPin, Pencil, Plus, Trash2, Users } from "lucide-react";
+import { CalendarClock, CalendarDays, HeartHandshake, MapPin, Pencil, Plus, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
+import CambiarFechasModal from "@/components/organizacion/CambiarFechasModal";
 import OportunidadForm from "@/components/organizacion/OportunidadForm";
 import { Badge, Button, Card, ConfirmModal, EmptyState, ErrorState, LinkButton, PageHeader, Spinner, Tabs } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { apiFetch } from "@/lib/api";
 import { formatDate } from "@/lib/format";
+import { puedeGestionarOportunidad } from "@/lib/permisos";
 import type { Oportunidad } from "@/lib/types";
+import { useAuth } from "@/providers/AuthProvider";
 import { useToast } from "@/providers/ToastProvider";
 
 function Contenido() {
   const params = useSearchParams();
   const toast = useToast();
+  const { user } = useAuth();
   const { data, loading, error, reload } = useApi<Oportunidad[]>("/oportunidades/mias");
   const [form, setForm] = useState<{ open: boolean; op: Oportunidad | null }>({ open: params.get("nueva") === "1", op: null });
   const [deleting, setDeleting] = useState<Oportunidad | null>(null);
   const [closing, setClosing] = useState<Oportunidad | null>(null);
+  const [fechas, setFechas] = useState<Oportunidad | null>(null);
   const [tab, setTab] = useState<"abiertas" | "cerradas">("abiertas");
   const [busy, setBusy] = useState(false);
 
@@ -94,7 +99,10 @@ function Contenido() {
         />
       ) : (
         <div className="space-y-4">
-          {lista.map((op) => (
+          {lista.map((op) => {
+            const gestiona = puedeGestionarOportunidad(user, op);
+            const aCargo = !!user && (op.encargados_ids ?? []).includes(user.id);
+            return (
             <Card key={op.id} className="p-5 sm:p-6">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0">
@@ -103,10 +111,13 @@ function Contenido() {
                       {op.titulo}
                     </Link>
                     <Badge tone={op.estado === "cerrada" ? "slate" : "green"}>{op.estado === "cerrada" ? "Cerrada" : "Abierta"}</Badge>
+                    {aCargo && <Badge tone="blue">Estás a cargo</Badge>}
+                    {!gestiona && <Badge tone="slate">Solo lectura</Badge>}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted">
                     <span className="flex items-center gap-1">
-                      <Users className="h-3.5 w-3.5" /> {op.num_postulaciones} postulantes{op.cupo_maximo ? ` · ${op.cupo_maximo} cupos` : ""}
+                      <Users className="h-3.5 w-3.5" /> {op.num_postulaciones}
+                      {op.meta_postulantes ? ` de ${op.meta_postulantes} (meta)` : ""} postulantes{op.cupo_maximo ? ` · ${op.cupo_maximo} cupos` : ""}
                     </span>
                     {op.fecha_limite_postulacion && (
                       <span className="flex items-center gap-1">
@@ -122,10 +133,15 @@ function Contenido() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <LinkButton href={`/organizacion/oportunidades/${op.id}`} variant="secondary" size="sm">
-                    <Users className="h-4 w-4" /> Postulantes
+                    <Users className="h-4 w-4" /> {gestiona ? "Postulantes" : "Ver postulantes"}
                   </LinkButton>
+                  {gestiona && (
+                  <>
                   <Button size="sm" variant="outline" onClick={() => setForm({ open: true, op })}>
                     <Pencil className="h-4 w-4" /> Editar
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setFechas(op)}>
+                    <CalendarClock className="h-4 w-4" /> Cambiar fechas
                   </Button>
                   {op.estado !== "cerrada" ? (
                     <Button size="sm" variant="outline" onClick={() => setClosing(op)}>
@@ -139,14 +155,24 @@ function Contenido() {
                   <Button size="sm" variant="ghost" className="text-red-600" onClick={() => setDeleting(op)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
+                  </>
+                  )}
                 </div>
               </div>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      <OportunidadForm open={form.open} oportunidad={form.op} onClose={() => setForm({ open: false, op: null })} onSaved={() => reload()} />
+      <OportunidadForm
+        key={form.open ? (form.op?.id ?? "nueva") : "cerrado"}
+        open={form.open}
+        oportunidad={form.op}
+        onClose={() => setForm({ open: false, op: null })}
+        onSaved={() => reload()}
+      />
+      <CambiarFechasModal key={fechas?.id ?? "ninguna"} op={fechas} onClose={() => setFechas(null)} onSaved={() => reload()} />
       <ConfirmModal
         open={!!closing}
         onClose={() => setClosing(null)}

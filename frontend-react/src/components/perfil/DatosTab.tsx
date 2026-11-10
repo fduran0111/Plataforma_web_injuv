@@ -4,8 +4,8 @@ import { Camera, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Alert, Avatar, Button, Card, Field, Input, Modal, Select } from "@/components/ui";
+import UbicacionFields from "@/components/UbicacionFields";
 import { apiFetch, fileUrl } from "@/lib/api";
-import { REGIONES } from "@/lib/constants";
 import { fullName } from "@/lib/format";
 import type { Usuario } from "@/lib/types";
 import { useAuth } from "@/providers/AuthProvider";
@@ -134,15 +134,12 @@ export default function DatosTab({ user }: { user: Usuario }) {
             <Field label="Teléfono">
               {(id) => <Input id={id} type="tel" value={form.telefono} onChange={set("telefono")} placeholder="+56 9 ..." />}
             </Field>
-            <Field label="Región">
-              {(id) => <Select id={id} value={form.region} onChange={set("region")} options={REGIONES} placeholder="Selecciona" />}
-            </Field>
-            <Field label="Ciudad">
-              {(id) => <Input id={id} value={form.ciudad} onChange={set("ciudad")} />}
-            </Field>
-            <Field label="Comuna">
-              {(id) => <Input id={id} value={form.comuna} onChange={set("comuna")} />}
-            </Field>
+            <UbicacionFields
+              region={form.region}
+              ciudad={form.ciudad}
+              comuna={form.comuna}
+              onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+            />
             <Field label="Sexo">
               {(id) => <Select id={id} value={form.sexo} onChange={set("sexo")} options={SEXOS} placeholder="Selecciona" />}
             </Field>

@@ -101,6 +101,29 @@ def notify_cambio_estado(email: str | None, nombre: str, oportunidad: str, estad
     )
 
 
+def _fecha_txt(d) -> str:
+    return d.strftime("%d-%m-%Y") if d else "sin fecha"
+
+
+def notify_cambio_fechas(
+    email: str | None, nombre: str, oportunidad: str, cambios: list[tuple[str, object, object]], motivo: str | None
+) -> None:
+    filas = "".join(
+        f"<li><strong>{html.escape(campo)}:</strong> {_fecha_txt(antes)} → <strong>{_fecha_txt(despues)}</strong></li>"
+        for campo, antes, despues in cambios
+    )
+    extra = f"<p><strong>Motivo:</strong> {html.escape(motivo)}</p>" if motivo else ""
+    send_email(
+        email,
+        f"Cambio de fechas: {oportunidad}",
+        "Cambiaron las fechas del voluntariado",
+        f"<p>Hola <strong>{html.escape(nombre)}</strong>,</p>"
+        f"<p>La organización actualizó las fechas de <strong>{html.escape(oportunidad)}</strong>:</p>"
+        f"<ul>{filas}</ul>{extra}",
+        "#f59e0b",
+    )
+
+
 def notify_oportunidad_cerrada(email: str | None, nombre: str, oportunidad: str) -> None:
     send_email(
         email,

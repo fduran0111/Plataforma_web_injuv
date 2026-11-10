@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Registro de GSAP + ScrollTrigger sincronizado con Lenis.
+ * Registro de GSAP + ScrollTrigger (sobre el scroll nativo).
  *
  * IMPORTANTE: importa este módulo SOLO desde componentes cargados con `next/dynamic`
  * (home, perfil). Así GSAP (~37 KB gzip) nunca entra en el bundle inicial.
@@ -14,7 +14,6 @@
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { driveLenisWith, onLenis } from "./SmoothScroll";
 
 let registered = false;
 
@@ -22,13 +21,6 @@ export function registerGsap() {
   if (!registered && typeof window !== "undefined") {
     registered = true;
     gsap.registerPlugin(ScrollTrigger, useGSAP);
-    gsap.ticker.lagSmoothing(0);
-    onLenis((lenis) => {
-      lenis.on("scroll", ScrollTrigger.update);
-      const tick = (time: number) => lenis.raf(time * 1000);
-      gsap.ticker.add(tick);
-      driveLenisWith(tick);
-    });
   }
   return { gsap, ScrollTrigger, useGSAP };
 }

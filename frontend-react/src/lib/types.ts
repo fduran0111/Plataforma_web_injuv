@@ -25,7 +25,8 @@ export type Usuario = {
   foto_version: string | null;
   certificados_personales: CertificadoPersonal[];
   created_at: string | null;
-  organizacion: { id: number; nombre: string | null } | null;
+  /** `rol`: "admin" = administrador de la organización (todo), "miembro" = solo voluntariados y academia. */
+  organizacion: { id: number; nombre: string | null; rol?: "admin" | "miembro" } | null;
 };
 
 export type EstadoOportunidad = "activa" | "abierta" | "cerrada";
@@ -53,6 +54,8 @@ export type Oportunidad = {
   ciudad: string;
   comuna: string;
   tipo_de_voluntariado: string;
+  /** Integrantes de la organización a cargo (pueden gestionar el voluntariado y sus postulantes). */
+  encargados_ids: number[];
   num_postulaciones: number;
   created_at: string | null;
   mi_postulacion?: { id: number; estado: string } | null;
@@ -82,14 +85,23 @@ export type PostulacionBase = {
   updated_at: string | null;
 };
 
-export type PostulacionUsuario = PostulacionBase & {
+/** Banderas de etapa que la API agrega en las vistas del voluntario y de la organización. */
+export type CicloPostulacion = {
+  /** Retiró la postulación o, siendo seleccionado, indicó que no participará. */
+  rechazo_participacion: boolean;
+  voluntariado_terminado: boolean;
+  /** Seleccionado que participa y voluntariado terminado: se habilitan certificado y evaluaciones. */
+  puede_certificar_y_evaluar: boolean;
+};
+
+export type PostulacionUsuario = PostulacionBase & CicloPostulacion & {
   oportunidad_titulo: string;
   oportunidad_estado: string;
   organizacion_id: number | null;
   organizacion_nombre: string;
 };
 
-export type Postulante = PostulacionBase & {
+export type Postulante = PostulacionBase & CicloPostulacion & {
   usuario_nombre: string;
   usuario_email: string;
   usuario_telefono: string;
@@ -224,6 +236,22 @@ export type EstadisticasAdmin = {
   oportunidades_por_area: Serie;
   postulaciones_por_estado: Serie;
   oportunidades_por_organizacion: Serie;
+};
+
+/** Ficha completa del postulante que ve la organización (GET /postulaciones/{id}/ficha). */
+export type FichaPostulante = {
+  nombre: string;
+  email: string;
+  telefono: string;
+  region: string;
+  ciudad: string;
+  comuna: string;
+  sexo: string;
+  fecha_nacimiento: string | null;
+  edad: number | null;
+  rut: string;
+  tiene_foto: boolean;
+  certificados: { tipo: string; fecha_emision: string | null; nombre_archivo: string | null; subido_en: string | null }[];
 };
 
 export type ResenaAdmin = PostulacionBase & {

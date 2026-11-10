@@ -16,6 +16,7 @@ from injuv.db.models import (
     Usuario,
 )
 from injuv.security.rbac import normalize_role
+from injuv.services.catalogo import puede_certificar_y_evaluar, rechazo_participacion, voluntariado_terminado
 
 
 def _num(value: Decimal | None) -> float | None:
@@ -120,6 +121,7 @@ def oportunidad(op: Oportunidad, org: Organizacion | None = None, num_postulacio
         "ciudad": op.ciudad_opor or (org.ciudad if org else "") or "",
         "comuna": op.comuna_opor or (org.comuna if org else "") or "",
         "tipo_de_voluntariado": op.tipo_de_voluntariado or "",
+        "encargados_ids": [x for x in (op.encargados_ids or []) if isinstance(x, int)],
         "num_postulaciones": num_postulaciones,
         "created_at": op.created_at,
     }
@@ -149,9 +151,24 @@ def postulacion_base(p: Postulacion) -> dict[str, Any]:
     }
 
 
+def postulacion_con_ciclo(p: Postulacion, op: Oportunidad | None) -> dict[str, Any]:
+    """Respuesta de las acciones sobre una postulación (incluye las banderas de etapa actualizadas)."""
+    return {**postulacion_base(p), **_ciclo(p, op)}
+
+
+def _ciclo(p: Postulacion, op: Oportunidad | None) -> dict[str, Any]:
+    """Banderas de etapa: si rechazó participar, si el voluntariado terminó y si ya se puede certificar/evaluar."""
+    return {
+        "rechazo_participacion": rechazo_participacion(p),
+        "voluntariado_terminado": voluntariado_terminado(op),
+        "puede_certificar_y_evaluar": puede_certificar_y_evaluar(p, op),
+    }
+
+
 def postulacion_para_usuario(p: Postulacion, op: Oportunidad | None, org: Organizacion | None) -> dict[str, Any]:
     data = postulacion_base(p)
     data.update(
+        _ciclo(p, op),
         oportunidad_titulo=op.titulo if op else "",
         oportunidad_estado=(op.estado if op else "") or "",
         organizacion_id=org.id if org else None,
@@ -160,9 +177,10 @@ def postulacion_para_usuario(p: Postulacion, op: Oportunidad | None, org: Organi
     return data
 
 
-def postulacion_para_org(p: Postulacion, u: Usuario | None) -> dict[str, Any]:
+def postulacion_para_org(p: Postulacion, u: Usuario | None, op: Oportunidad | None = None) -> dict[str, Any]:
     data = postulacion_base(p)
     data.update(
+        _ciclo(p, op),
         usuario_nombre=nombre_completo(u),
         usuario_email=(u.email if u else "") or "",
         usuario_telefono=(u.telefono if u else "") or "",
@@ -174,6 +192,28 @@ def postulacion_para_org(p: Postulacion, u: Usuario | None) -> dict[str, Any]:
         usuario_tiene_foto=bool(u and u.foto_perfil),
     )
     return data
+
+
+def ficha_postulante(u: Usuario | None) -> dict[str, Any]:
+    """Datos del postulante que la organización puede revisar (sin incluir el nombre interno del archivo)."""
+    return {
+        "nombre": nombre_completo(u),
+        "email": (u.email if u else "") or "",
+        "telefono": (u.telefono if u else "") or "",
+        "region": (u.region if u else "") or "",
+        "ciudad": (u.ciudad if u else "") or "",
+        "comuna": (u.comuna if u else "") or "",
+        "sexo": (u.sexo if u else "") or "",
+        "fecha_nacimiento": u.fecha_nacimiento if u else None,
+        "edad": edad(u.fecha_nacimiento) if u else None,
+        "rut": (u.rut if u else "") or "",
+        "tiene_foto": bool(u and u.foto_perfil),
+        "certificados": [
+            {k: c.get(k) for k in ("tipo", "fecha_emision", "nombre_archivo", "subido_en")}
+            for c in _list(u.certificado_personales if u else [])
+            if isinstance(c, dict)
+        ],
+    }
 
 
 def noticia(n: Noticia, autor: Usuario | None = None) -> dict[str, Any]:

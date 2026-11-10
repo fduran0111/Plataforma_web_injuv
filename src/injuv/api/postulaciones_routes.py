@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 
 from injuv.api.deps import CurrentUser, DbSession
-from injuv.api.oportunidades_routes import ensure_can_manage
+from injuv.api.oportunidades_routes import ensure_can_manage, ensure_can_view
 from injuv.db.models import Oportunidad, Organizacion, Postulacion, Usuario
 from injuv.schemas.postulaciones import (
     AsistenciaBody,
@@ -22,8 +22,9 @@ from injuv.schemas.postulaciones import (
     VisibilidadBody,
 )
 from injuv.security.rbac import is_admin
+from injuv.services import certificado as certificado_service
 from injuv.services import files, mailer, serializers
-from injuv.services.catalogo import ESTADO_DECLINADA
+from injuv.services.catalogo import ESTADO_DECLINADA, rechazo_participacion, voluntariado_terminado
 
 router = APIRouter(prefix="/postulaciones", tags=["Postulaciones"])
 
@@ -53,7 +54,15 @@ def _managed(db: DbSession, postulacion_id: int, user: Usuario) -> tuple[Postula
 def _touch_and_return(db: DbSession, p: Postulacion) -> dict[str, Any]:
     p.updated_at = datetime.now()
     db.commit()
-    return serializers.postulacion_base(p)
+    return serializers.postulacion_con_ciclo(p, db.get(Oportunidad, p.oportunidad_id))
+
+
+def _exigir_fin_de_ciclo(p: Postulacion, op: Oportunidad, accion: str) -> None:
+    """Certificado y evaluaciones solo con el voluntariado terminado y un seleccionado que participa."""
+    if p.estado != "Seleccionado" or rechazo_participacion(p):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Solo se puede {accion} de postulantes seleccionados que participaron")
+    if not voluntariado_terminado(op):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Podrás {accion} cuando termine el voluntariado")
 
 
 # ---------- Voluntario ----------
@@ -77,9 +86,8 @@ def confirmar_participacion(postulacion_id: int, body: ConfirmacionBody, db: DbS
 
 @router.put("/{postulacion_id}/resena-usuario")
 def resena_usuario(postulacion_id: int, body: ResenaUsuarioBody, db: DbSession, user: CurrentUser) -> dict[str, Any]:
-    p, _ = _own(db, postulacion_id, user)
-    if p.estado != "Seleccionado":
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Solo puedes reseñar voluntariados en los que participaste")
+    p, op = _own(db, postulacion_id, user)
+    _exigir_fin_de_ciclo(p, op, "evaluar el voluntariado")
     p.resena_usuario = body.resena.strip()
     p.calificacion_usuario_org = round(body.calificacion, 1)
     p.resena_usuario_publica = body.es_publica
@@ -90,11 +98,34 @@ def resena_usuario(postulacion_id: int, body: ResenaUsuarioBody, db: DbSession, 
 def descargar_certificado(postulacion_id: int, db: DbSession, user: CurrentUser) -> FileResponse:
     p, op = _get(db, postulacion_id)
     if p.usuario_id != user.id:
-        ensure_can_manage(db, op, user)
+        ensure_can_view(db, op, user)
     return files.send(CERT_FOLDER, p.ruta_certificado_pdf, f"certificado_voluntariado_{p.id}.pdf")
 
 
 # ---------- Organización ----------
+
+
+@router.get("/{postulacion_id}/ficha")
+def ficha_postulante(postulacion_id: int, db: DbSession, user: CurrentUser) -> dict[str, Any]:
+    """Datos y certificados personales del postulante, para la organización dueña."""
+    p, op = _get(db, postulacion_id)
+    ensure_can_view(db, op, user)
+    return serializers.ficha_postulante(db.get(Usuario, p.usuario_id))
+
+
+@router.get("/{postulacion_id}/certificado-personal/{tipo}")
+def certificado_personal_postulante(postulacion_id: int, tipo: str, db: DbSession, user: CurrentUser) -> FileResponse:
+    """La organización descarga el certificado de antecedentes o inhabilidades del postulante."""
+    if tipo not in ("antecedentes", "inhabilidades"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tipo de certificado no válido")
+    p, op = _get(db, postulacion_id)
+    ensure_can_view(db, op, user)
+    u = db.get(Usuario, p.usuario_id)
+    cert = next(
+        (c for c in (u.certificado_personales or []) if isinstance(c, dict) and c.get("tipo") == tipo),
+        None,
+    ) if u else None
+    return files.send("certificados_personales", cert.get("archivo") if cert else None, f"{tipo}_postulante_{p.id}.pdf")
 
 
 @router.patch("/{postulacion_id}/estado")
@@ -125,6 +156,16 @@ def cambiar_estado(
 @router.patch("/{postulacion_id}/asistencia")
 def asistencia(postulacion_id: int, body: AsistenciaBody, db: DbSession, user: CurrentUser) -> dict[str, Any]:
     p, _, _ = _managed(db, postulacion_id, user)
+    if p.estado == "No seleccionado":
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "No se puede registrar asistencia ni horas de un postulante no seleccionado",
+        )
+    if rechazo_participacion(p):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "El postulante rechazó el voluntariado: no se puede registrar asistencia ni horas",
+        )
     if body.asistencia_capacitacion is not None:
         p.asistencia_capacitacion = body.asistencia_capacitacion
     if body.asistencia_actividad is not None:
@@ -145,7 +186,8 @@ def asistencia(postulacion_id: int, body: AsistenciaBody, db: DbSession, user: C
 
 @router.put("/{postulacion_id}/resena-org")
 def resena_org(postulacion_id: int, body: ResenaOrgBody, db: DbSession, user: CurrentUser) -> dict[str, Any]:
-    p, _, _ = _managed(db, postulacion_id, user)
+    p, op, _ = _managed(db, postulacion_id, user)
+    _exigir_fin_de_ciclo(p, op, "evaluar al voluntario")
     p.resena_org_sobre_voluntario = (body.resena or "").strip() or None
     p.calificacion_org = round(body.calificacion, 1) if body.calificacion is not None else None
     p.resena_org_publica = body.es_publica
@@ -154,8 +196,9 @@ def resena_org(postulacion_id: int, body: ResenaOrgBody, db: DbSession, user: Cu
 
 @router.patch("/{postulacion_id}/visibilidad-resena")
 def visibilidad_resena_usuario(postulacion_id: int, body: VisibilidadBody, db: DbSession, user: CurrentUser) -> dict[str, Any]:
-    """La organización (o admin) decide si la reseña del voluntario se muestra públicamente."""
-    p, _, _ = _managed(db, postulacion_id, user)
+    """El administrador de la organización (o admin INJUV) decide si la reseña del voluntario es pública."""
+    p, op = _get(db, postulacion_id)
+    ensure_can_manage(db, op, user, solo_admin_org=True)
     p.resena_usuario_publica = body.es_publica
     return _touch_and_return(db, p)
 
@@ -167,8 +210,24 @@ async def subir_certificado(
     user: CurrentUser,
     certificado: UploadFile = File(...),
 ) -> dict[str, Any]:
-    p, _, _ = _managed(db, postulacion_id, user)
+    p, op, _ = _managed(db, postulacion_id, user)
+    _exigir_fin_de_ciclo(p, op, "subir el certificado")
     name, _, _ = await files.save_upload(certificado, CERT_FOLDER, f"certificado_{p.id}", {".pdf"}, 10)
+    files.delete(CERT_FOLDER, p.ruta_certificado_pdf)
+    p.ruta_certificado_pdf = name
+    p.tiene_certificado = True
+    return _touch_and_return(db, p)
+
+
+@router.post("/{postulacion_id}/certificado/generar")
+def generar_certificado(postulacion_id: int, db: DbSession, user: CurrentUser) -> dict[str, Any]:
+    """Emite el certificado estándar INJUV con los datos de la postulación (sin subir un PDF a mano)."""
+    p, op, org = _managed(db, postulacion_id, user)
+    _exigir_fin_de_ciclo(p, op, "emitir el certificado")
+    voluntario = db.get(Usuario, p.usuario_id)
+    pdf = certificado_service.generar_certificado(p, op, org, voluntario)
+    name = f"certificado_{p.id}_{datetime.now():%Y%m%d_%H%M%S}.pdf"
+    (files.folder_path(CERT_FOLDER) / name).write_bytes(pdf)
     files.delete(CERT_FOLDER, p.ruta_certificado_pdf)
     p.ruta_certificado_pdf = name
     p.tiene_certificado = True
@@ -212,5 +271,5 @@ def enviar_certificado(postulacion_id: int, body: EnviarCertificadoBody, db: DbS
 def detalle(postulacion_id: int, db: DbSession, user: CurrentUser) -> dict[str, Any]:
     p, op = _get(db, postulacion_id)
     if p.usuario_id != user.id and not is_admin(user.rol):
-        ensure_can_manage(db, op, user)
+        ensure_can_view(db, op, user)
     return serializers.postulacion_para_usuario(p, op, db.get(Organizacion, op.organizacion_id))

@@ -168,15 +168,20 @@ export default function PostulacionesTab({ user }: { user: Usuario }) {
                   <Download className="h-4 w-4" /> Descargar certificado
                 </Button>
               )}
-              {seleccionado && !p.tiene_certificado && (
+              {seleccionado && !p.rechazo_participacion && !p.tiene_certificado && (
                 <Badge tone="neutral">
                   <Award className="h-3.5 w-3.5" /> Certificado pendiente
                 </Badge>
               )}
-              {seleccionado && (
+              {p.puede_certificar_y_evaluar ? (
                 <Button size="sm" variant="outline" onClick={() => setReviewing(p)}>
                   <MessageSquareQuote className="h-4 w-4" /> {p.resena_usuario ? "Editar reseña" : "Dejar reseña"}
                 </Button>
+              ) : (
+                seleccionado &&
+                !p.rechazo_participacion && (
+                  <span className="self-center text-xs text-fg-muted">Podrás evaluar el voluntariado cuando termine.</span>
+                )
               )}
               {!finalizada && !seleccionado && (
                 <Button size="sm" variant="ghost" className="text-red-600" onClick={() => setDeclining(p)}>
@@ -208,6 +213,7 @@ export default function PostulacionesTab({ user }: { user: Usuario }) {
       />
 
       <ResenaModal
+        key={reviewing?.id ?? "cerrado"}
         postulacion={reviewing}
         busy={busy}
         onClose={() => setReviewing(null)}

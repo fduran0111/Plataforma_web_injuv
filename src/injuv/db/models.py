@@ -114,6 +114,7 @@ class Oportunidad(Base):
     ciudad_opor: Mapped[str | None] = mapped_column(String(255))
     comuna_opor: Mapped[str | None] = mapped_column(String(255))
     tipo_de_voluntariado: Mapped[str | None] = mapped_column(String(100))
+    encargados_ids: Mapped[Any] = mapped_column(JSONB, default=list)
     created_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 

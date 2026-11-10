@@ -70,3 +70,26 @@ def get_own_organization(db: DbSession, user: CurrentUser) -> Organizacion:
 
 
 OwnOrganization = Annotated[Organizacion, Depends(get_own_organization)]
+
+
+def organizacion_de_usuario(db: Session, user: Usuario) -> tuple[Organizacion | None, str | None]:
+    """Organización del usuario y su rol en ella: 'admin' (dueño) o 'miembro' (afiliado)."""
+    org = db.scalar(select(Organizacion).where(Organizacion.id_usuario_org == user.id))
+    if org:
+        return org, "admin"
+    if user.organizacion_afiliada:
+        org = db.get(Organizacion, user.organizacion_afiliada)
+        if org:
+            return org, "miembro"
+    return None, None
+
+
+def get_member_organization(db: DbSession, user: CurrentUser) -> Organizacion:
+    """Organización a la que pertenece el usuario, como administrador o como miembro."""
+    org, _ = organizacion_de_usuario(db, user)
+    if not org:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No perteneces a ninguna organización")
+    return org
+
+
+MemberOrganization = Annotated[Organizacion, Depends(get_member_organization)]
