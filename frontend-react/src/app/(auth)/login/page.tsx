@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { Alert, Button, Checkbox, Field, Input } from "@/components/ui";
+import { Alert, Button, Checkbox, Field, Input, PasswordInput } from "@/components/ui";
 import { homeForRole, useAuth } from "@/providers/AuthProvider";
 
 function LoginForm() {
@@ -43,9 +43,8 @@ function LoginForm() {
       </Field>
       <Field label="Contraseña" required>
         {(id) => (
-          <Input
+          <PasswordInput
             id={id}
-            type="password"
             autoComplete="current-password"
             required
             value={password}

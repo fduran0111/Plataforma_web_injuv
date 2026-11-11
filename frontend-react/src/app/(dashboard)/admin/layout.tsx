@@ -1,11 +1,12 @@
 "use client";
 
-import { BarChart3, Building2, FileText, Inbox, Library, MessageSquareQuote, Newspaper, Users } from "lucide-react";
+import { BarChart3, Building2, FileText, Inbox, LayoutTemplate, Library, MessageSquareQuote, Newspaper, Users } from "lucide-react";
 import DashboardShell from "@/components/layout/DashboardShell";
 import RequireAuth from "@/components/RequireAuth";
 
 const NAV = [
   { href: "/admin", label: "Resumen", icon: BarChart3 },
+  { href: "/admin/portada", label: "Portada", icon: LayoutTemplate },
   { href: "/admin/solicitudes", label: "Solicitudes", icon: Inbox },
   { href: "/admin/usuarios", label: "Usuarios", icon: Users },
   { href: "/admin/organizaciones", label: "Organizaciones", icon: Building2 },

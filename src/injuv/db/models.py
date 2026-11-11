@@ -200,3 +200,31 @@ class AcademiaDocumento(Base):
     descripcion: Mapped[str | None] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class PortadaConfig(Base):
+    __tablename__ = "portada_config"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    etiqueta: Mapped[str | None] = mapped_column(String(120))
+    titulo_linea1: Mapped[str | None] = mapped_column(String(80))
+    titulo_linea2: Mapped[str | None] = mapped_column(String(80))
+    titulo_resaltado: Mapped[str | None] = mapped_column(String(80))
+    subtitulo: Mapped[str | None] = mapped_column(String(300))
+    aviso_activo: Mapped[bool] = mapped_column(Boolean, default=False)
+    aviso_texto: Mapped[str | None] = mapped_column(String(200))
+    aviso_enlace: Mapped[str | None] = mapped_column(String(300))
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class PortadaFoto(Base):
+    __tablename__ = "portada_fotos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    seccion: Mapped[str] = mapped_column(String(20))
+    archivo: Mapped[str] = mapped_column(String(255))
+    archivo_original: Mapped[str | None] = mapped_column(String(255))
+    alt: Mapped[str] = mapped_column(String(200), default="")
+    orden: Mapped[int] = mapped_column(Integer, default=0)
+    activa: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)

@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/format";
 import { useReducedMotion } from "@/lib/motion";
 
-type Foto = { src: StaticImageData; alt: string };
+type Foto = { src: StaticImageData | string; alt: string };
 
 const BOTON =
   "flex h-11 w-11 items-center justify-center rounded-full border-[1.5px] border-tinta bg-surface text-tinta transition-colors duration-200 hover:bg-tinta hover:text-papel focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
@@ -142,6 +142,7 @@ export default function GaleriaFotos({ titulo, fotos }: { titulo: string; fotos:
                   alt={copia ? "" : f.alt}
                   fill
                   draggable={false}
+                  unoptimized={typeof f.src === "string"}
                   sizes="(min-width: 1024px) 56vw, 80vw"
                   className="object-cover"
                 />
