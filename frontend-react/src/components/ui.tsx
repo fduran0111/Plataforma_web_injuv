@@ -1,9 +1,10 @@
 "use client";
 
-import { Loader2, Star, X } from "lucide-react";
+import { Eye, EyeOff, Loader2, Star, X } from "lucide-react";
 import * as m from "motion/react-m";
 import Link from "next/link";
 import { useEffect, useId, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Tone } from "@/lib/constants";
 import { cn, initials } from "@/lib/format";
 
@@ -121,6 +122,25 @@ export function Field({
 
 export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cn(CONTROL, "h-11", className)} {...props} />;
+}
+
+export function PasswordInput({ className, ...props }: Omit<React.InputHTMLAttributes<HTMLInputElement>, "type">) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <input type={visible ? "text" : "password"} className={cn(CONTROL, "h-11 pr-11", className)} {...props} />
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+        aria-pressed={visible}
+        title={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-md text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand"
+      >
+        {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  );
 }
 
 export function Textarea({ className, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
@@ -266,10 +286,18 @@ export function Card({ className, children, ...props }: React.HTMLAttributes<HTM
 }
 
 export function Spinner({ className, label }: { className?: string; label?: string }) {
+  const [lento, setLento] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setLento(true), 5000);
+    return () => clearTimeout(t);
+  }, []);
   return (
-    <div className={cn("flex items-center justify-center gap-2 py-12 text-fg-muted", className)}>
-      <Loader2 className="h-5 w-5 animate-spin" />
-      {label && <span className="text-sm">{label}</span>}
+    <div role="status" aria-live="polite" className={cn("flex items-center justify-center gap-2 py-12 text-fg-muted", lento && "flex-col", className)}>
+      <div className="flex items-center gap-2">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        {label && <span className="text-sm">{label}</span>}
+      </div>
+      {lento && <p className="max-w-[36ch] text-center text-sm text-fg-muted">Estamos conectando con el servidor. Puede tardar unos segundos la primera vez.</p>}
     </div>
   );
 }
@@ -507,7 +535,7 @@ export function Modal({
 
   if (!open) return null;
   const widths = { sm: "max-w-md", md: "max-w-lg", lg: "max-w-2xl", xl: "max-w-4xl" };
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-tinta/60 p-0 sm:items-center sm:p-4" onMouseDown={onClose}>
       <div
         role="dialog"
@@ -528,7 +556,8 @@ export function Modal({
         <div className="overflow-y-auto px-6 py-5">{children}</div>
         {footer && <div className="flex justify-end gap-2 border-t-[1.5px] border-tinta/15 px-6 py-4">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

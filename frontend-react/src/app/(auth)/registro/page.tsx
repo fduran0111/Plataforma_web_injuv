@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Alert, Button, Field, Input } from "@/components/ui";
+import { Alert, Button, Field, Input, PasswordInput } from "@/components/ui";
 import { formatRut } from "@/lib/format";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -84,7 +84,7 @@ export default function RegistroPage() {
             </Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="RUT" required error={rutError} reserve>
+            <Field label="RUT" required error={rutError} reserve hint="Ej.: 12.345.678-5. Se formatea solo mientras escribes.">
               {(id) => (
                 <Input
                   id={id}
@@ -105,10 +105,10 @@ export default function RegistroPage() {
             {(id) => <Input id={id} type="email" required autoComplete="email" value={form.email} onChange={set("email")} />}
           </Field>
           <Field label="Contraseña" required hint="Mínimo 8 caracteres">
-            {(id) => <Input id={id} type="password" required minLength={8} autoComplete="new-password" value={form.password} onChange={set("password")} />}
+            {(id) => <PasswordInput id={id} required minLength={8} autoComplete="new-password" value={form.password} onChange={set("password")} />}
           </Field>
           <Field label="Confirmar contraseña" required error={confirmError} reserve>
-            {(id) => <Input id={id} type="password" required autoComplete="new-password" value={form.confirm} onChange={set("confirm")} />}
+            {(id) => <PasswordInput id={id} required autoComplete="new-password" value={form.confirm} onChange={set("confirm")} />}
           </Field>
         </Seccion>
         <Button type="submit" size="lg" className="w-full" loading={submitting}>

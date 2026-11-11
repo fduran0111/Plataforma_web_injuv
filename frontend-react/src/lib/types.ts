@@ -259,3 +259,19 @@ export type ResenaAdmin = PostulacionBase & {
   organizacion_nombre: string;
   usuario_nombre: string;
 };
+
+export type PortadaConfig = {
+  etiqueta: string | null;
+  titulo_linea1: string | null;
+  titulo_linea2: string | null;
+  titulo_resaltado: string | null;
+  subtitulo: string | null;
+  aviso_activo: boolean;
+  aviso_texto: string | null;
+  aviso_enlace: string | null;
+};
+
+export type PortadaFoto = { id: number; archivo: string; alt: string; activa?: boolean; orden?: number; archivo_original?: string | null };
+
+export type PortadaPublica = { config: PortadaConfig; fotos: { inicio: PortadaFoto[]; galeria: PortadaFoto[] } };
+export type PortadaAdmin = PortadaPublica;

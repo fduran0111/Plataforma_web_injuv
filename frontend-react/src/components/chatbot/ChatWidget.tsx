@@ -65,6 +65,16 @@ const FAQ: FaqEntry[] = [
       "Para problemas técnicos o consultas sobre la plataforma, escríbenos a voluntariado@injuv.gob.cl. Te responderemos a la brevedad posible.",
   },
   {
+    keywords: ["retirar", "cancelar postulación", "anular", "ya no puedo", "desistir", "retiro"],
+    response:
+      "Puedes retirar una postulación desde tu perfil, en Mis postulaciones, mientras esté pendiente (antes de ser seleccionada). Si ya fuiste seleccionado y no podrás asistir, avisa a la organización lo antes posible usando sus datos de contacto.",
+  },
+  {
+    keywords: ["no me seleccionaron", "rechazado", "rechazada", "no quedé", "no fui seleccionado", "no seleccionado"],
+    response:
+      "No te desanimes: cada organización tiene cupos limitados. Puedes seguir postulando a otros voluntariados en Oportunidades; tus postulaciones anteriores no afectan las nuevas.",
+  },
+  {
     keywords: ["buscar", "encontrar", "filtrar", "búsqueda", "cómo busco"],
     response:
       "En la página de Oportunidades puedes buscar por texto y filtrar por región y área de voluntariado. También hay un buscador en la portada.",

@@ -3,7 +3,7 @@
 import { Camera, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { Alert, Avatar, Button, Card, Field, Input, Modal, Select } from "@/components/ui";
+import { Alert, Avatar, Button, Card, Field, Input, Modal, PasswordInput, Select } from "@/components/ui";
 import UbicacionFields from "@/components/UbicacionFields";
 import RecortarFoto from "@/components/perfil/RecortarFoto";
 import { apiFetch, fileUrl } from "@/lib/api";
@@ -194,7 +194,7 @@ export default function DatosTab({ user }: { user: Usuario }) {
         }
       >
         <Field label="Ingresa tu contraseña para confirmar" required>
-          {(id) => <Input id={id} type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />}
+          {(id) => <PasswordInput id={id} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />}
         </Field>
       </Modal>
     </div>

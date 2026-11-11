@@ -14,6 +14,7 @@ from injuv.api import (
     noticias_routes,
     oportunidades_routes,
     organizaciones_routes,
+    portada_routes,
     postulaciones_routes,
     public_routes,
     repositorio_routes,
@@ -69,6 +70,7 @@ for module in (
     noticias_routes,
     repositorio_routes,
     admin_routes,
+    portada_routes,
     public_routes,
 ):
     app.include_router(module.router)
