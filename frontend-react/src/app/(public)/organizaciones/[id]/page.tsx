@@ -50,7 +50,7 @@ export default function OrganizacionPage() {
         <div className="mx-auto max-w-7xl px-4 pb-14 pt-10 sm:px-6 lg:px-8 lg:pb-20 lg:pt-14">
           <div className="grid gap-x-8 gap-y-12 lg:grid-cols-12 lg:items-end">
             <Entrada className="lg:col-span-7">
-              <Avatar name={o.nombre} src={o.tiene_logo ? fileUrl.logo(o.id, o.logo_version) : null} size={96} className="ring-4 ring-papel/15" />
+              <Avatar name={o.nombre} src={o.tiene_logo ? fileUrl.logo(o.id, o.logo_version) : null} size={144} className="ring-4 ring-papel/15" />
               <h1 className="mt-8 max-w-[16ch] font-display text-[clamp(2.5rem,1.3rem+4vw,5.25rem)] leading-[0.96] tracking-[-0.03em] text-papel [text-wrap:balance]">
                 {o.nombre}
               </h1>

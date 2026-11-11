@@ -304,19 +304,6 @@
     }
   }
 
-  .chat-panel {
-    transform-origin: bottom right;
-    transition:
-      opacity 200ms var(--ease-out),
-      transform 200ms var(--ease-out);
-  }
-  @starting-style {
-    .chat-panel {
-      opacity: 0;
-      transform: translateY(8px) scale(0.97);
-    }
-  }
-
   @media (prefers-reduced-motion: reduce) {
     .linea > span {
       animation: none;
@@ -328,23 +315,29 @@
     .kb {
       animation: none !important;
     }
-    .burbuja {
-      animation: solo-opacidad 300ms ease both;
-    }
-    .chat-lanzador::after {
-      animation: none;
-    }
-    .menu-movil,
-    .chat-panel {
+    .menu-movil {
       transition-property: opacity;
     }
     @starting-style {
-      .menu-movil,
-      .chat-panel {
+      .menu-movil {
         transform: none;
       }
     }
+    .chat-punto {
+      animation: none !important;
+    }
   }
+  /* Indicador "escribiendo" del chat */
+  .chat-punto {
+    animation: chat-punto 1s ease-in-out infinite;
+  }
+  .chat-punto:nth-child(2) { animation-delay: 150ms; }
+  .chat-punto:nth-child(3) { animation-delay: 300ms; }
+  @keyframes chat-punto {
+    0%, 100% { opacity: 0.3; transform: translateY(0); }
+    50% { opacity: 1; transform: translateY(-3px); }
+  }
+
   @keyframes solo-opacidad {
     from {
       opacity: 0;

@@ -174,6 +174,14 @@ async def subir_logo(db: DbSession, org: OwnOrganization, imagen: UploadFile = F
     return _detalle(db, org)
 
 
+@router.delete("/mia/logo")
+def eliminar_logo(db: DbSession, org: OwnOrganization) -> dict[str, Any]:
+    files.delete(LOGO_FOLDER, org.logo_filename)
+    org.logo_filename = None
+    db.commit()
+    return _detalle(db, org)
+
+
 @router.post("/mia/certificaciones")
 async def subir_certificacion(
     db: DbSession,
