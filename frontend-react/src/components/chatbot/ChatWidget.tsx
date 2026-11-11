@@ -1,6 +1,7 @@
 "use client";
 
 import { Bot, MessageCircle, Send, X } from "lucide-react";
+import { AnimatePresence } from "motion/react";
 import * as m from "motion/react-m";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/format";
@@ -80,7 +81,7 @@ const QUICK = ["¿Cómo me registro?", "¿Necesito experiencia previa?", "¿Cuá
 const FALLBACK =
   "Puedo ayudarte con información sobre registro, cómo empezar, voluntariados disponibles, requisitos, tiempos de respuesta, formación, certificados y cómo registrar una organización. ¿Sobre qué te gustaría saber?";
 
-type Msg = { from: "user" | "bot"; text: string };
+type Msg = { id: number; from: "user" | "bot"; text: string };
 
 function answer(text: string): string {
   const t = text.toLowerCase();
@@ -92,24 +93,46 @@ function answer(text: string): string {
   return best?.response ?? FALLBACK;
 }
 
+const EASE = [0.23, 1, 0.32, 1] as const;
+
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
+  const [escribiendo, setEscribiendo] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([
-    { from: "bot", text: "¡Hola! Soy el asistente de la plataforma de voluntariado INJUV. ¿En qué te puedo ayudar?" },
+    { id: 0, from: "bot", text: "¡Hola! Soy el asistente de la plataforma de voluntariado INJUV. ¿En qué te puedo ayudar?" },
   ]);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const listaRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const idRef = useRef(1);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
+  // El scroll se mueve solo dentro del contenedor: nunca la página.
   useEffect(() => {
-    if (open) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [msgs, open]);
+    if (open) listaRef.current?.scrollTo({ top: listaRef.current.scrollHeight, behavior: "smooth" });
+  }, [msgs, escribiendo, open]);
+
+  // Foco en el input al abrir; Escape cierra solo con el panel abierto.
+  useEffect(() => {
+    if (!open) return;
+    inputRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  useEffect(() => () => clearTimeout(timerRef.current ?? undefined), []);
 
   function send(text: string) {
     const question = text.trim();
-    if (!question) return;
-    setMsgs((m) => [...m, { from: "user", text: question }]);
+    if (!question || escribiendo) return;
+    setMsgs((m) => [...m, { id: idRef.current++, from: "user", text: question }]);
     setInput("");
-    setTimeout(() => setMsgs((m) => [...m, { from: "bot", text: answer(question) }]), 350);
+    setEscribiendo(true);
+    timerRef.current = setTimeout(() => {
+      setMsgs((m) => [...m, { id: idRef.current++, from: "bot", text: answer(question) }]);
+      setEscribiendo(false);
+    }, 700);
   }
 
   return (
@@ -119,12 +142,13 @@ export default function ChatWidget() {
         onClick={() => setOpen((o) => !o)}
         aria-label={open ? "Cerrar asistente" : "Abrir asistente de ayuda"}
         className={cn(
-          "chat-lanzador fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-full border-[1.5px] border-tinta shadow-[0_8px_24px_-8px_rgb(15_27_45/0.45)] transition-colors duration-200",
-          open ? "bg-tinta text-papel" : "bg-brand text-white hover:bg-brand-dark",
+          "fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-brand text-white shadow-[0_12px_28px_-10px_rgb(0_82_204/0.6)] transition-colors duration-200",
+          open ? "bg-tinta text-papel" : "hover:bg-brand-dark",
         )}
-        initial={{ opacity: 0, y: 16, scale: 0.92 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ type: "spring", bounce: 0.2, delay: 1.2 }}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: EASE, delay: 0.4 }}
+        whileTap={{ scale: 0.94 }}
       >
         <span aria-hidden className="relative h-6 w-6">
           <MessageCircle
@@ -142,68 +166,133 @@ export default function ChatWidget() {
         </span>
       </m.button>
 
-      {open && (
-        <div className="chat-panel fixed bottom-24 right-5 z-50 flex h-[480px] w-[calc(100vw-2.5rem)] max-w-sm flex-col overflow-hidden rounded-lg border-[1.5px] border-tinta bg-surface shadow-[0_18px_40px_-16px_rgb(15_27_45/0.45)]">
-          <div className="flex items-center gap-3 bg-tinta px-4 py-3 text-papel">
-            <div className="rounded-md bg-papel/10 p-2">
-              <Bot className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold">Asistente INJUV</p>
-              <p className="text-xs text-papel/75">Preguntas frecuentes sobre voluntariado</p>
-            </div>
-          </div>
-
-          <div className="flex-1 space-y-3 overflow-y-auto p-4">
-            {msgs.map((msg, i) => (
-              <div key={i} className={cn("flex", msg.from === "user" ? "justify-end" : "justify-start")}>
-                <div
-                  className={cn(
-                    "burbuja max-w-[85%] px-3.5 py-2.5 text-sm leading-relaxed",
-                    msg.from === "user" ? "rounded-lg rounded-br-sm bg-brand text-white" : "rounded-lg rounded-bl-sm bg-papel-strong text-fg",
-                  )}
-                >
-                  {msg.text}
-                </div>
-              </div>
-            ))}
-            <div ref={bottomRef} />
-          </div>
-
-          {msgs.length <= 2 && (
-            <div className="flex flex-wrap gap-1.5 border-t border-tinta/15 px-3 py-2.5">
-              {QUICK.map((q) => (
-                <button
-                  key={q}
-                  type="button"
-                  onClick={() => send(q)}
-                  className="rounded-md border-[1.5px] border-tinta/30 bg-surface px-2.5 py-1 text-xs text-fg-secondary transition-colors hover:border-tinta hover:bg-papel"
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              send(input);
-            }}
-            className="flex items-center gap-2 border-t border-tinta/15 p-3"
+      <AnimatePresence>
+        {open && (
+          <m.div
+            role="dialog"
+            aria-label="Asistente INJUV"
+            initial={{ opacity: 0, y: 12, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1, transition: { duration: 0.22, ease: EASE } }}
+            exit={{ opacity: 0, y: 8, scale: 0.98, transition: { duration: 0.15, ease: EASE } }}
+            style={{ transformOrigin: "bottom right" }}
+            className="fixed bottom-24 right-5 z-50 flex h-[520px] max-h-[calc(100svh-8rem)] w-[calc(100vw-2.5rem)] flex-col overflow-hidden rounded-[28px] bg-papel ring-1 ring-tinta/10 shadow-[0_24px_60px_-20px_rgb(15_27_45/0.45)] sm:w-[380px]"
           >
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Escribe tu pregunta…"
-              className="h-10 w-full rounded-md border-[1.5px] border-tinta/35 bg-surface px-3.5 text-sm text-fg placeholder:text-fg-muted transition-[border-color,box-shadow] focus:border-tinta focus:outline-none focus:shadow-[inset_0_0_0_1px_var(--tinta)]"
-            />
-            <button type="submit" aria-label="Enviar" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-[1.5px] border-tinta bg-brand text-white hover:bg-brand-dark">
-              <Send className="h-4 w-4" />
-            </button>
-          </form>
-        </div>
-      )}
+            <div className="flex items-center gap-3 bg-tinta px-5 py-4 text-papel">
+              <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-brand">
+                <Bot className="h-5 w-5 text-white" />
+                <span aria-hidden className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-tinta" />
+              </div>
+              <div className="flex-1">
+                <p className="font-display text-base">Asistente INJUV</p>
+                <p className="text-xs text-papel/70">Responde al instante</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Cerrar asistente"
+                onClick={() => setOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-papel/70 transition-colors hover:bg-papel/10 hover:text-papel"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div ref={listaRef} className="flex-1 space-y-2.5 overflow-y-auto px-4 py-5">
+              {msgs.map((msg, i) => {
+                const ultimoBot = msg.from === "bot" && (i === msgs.length - 1 || msgs[i + 1].from !== "bot");
+                return (
+                  <div key={msg.id} className={cn("flex items-end gap-2", msg.from === "user" ? "justify-end" : "justify-start")}>
+                    {msg.from === "bot" &&
+                      (ultimoBot ? (
+                        <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-tinta text-papel">
+                          <Bot className="h-3.5 w-3.5" />
+                        </span>
+                      ) : (
+                        <span aria-hidden className="w-7 shrink-0" />
+                      ))}
+                    <m.div
+                      initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ duration: 0.2, ease: EASE }}
+                      style={{ transformOrigin: msg.from === "user" ? "bottom right" : "bottom left" }}
+                      className={cn(
+                        "max-w-[82%] rounded-[20px] px-4 py-2.5 text-[0.9rem] leading-relaxed",
+                        msg.from === "user"
+                          ? "rounded-br-md bg-brand text-white"
+                          : "rounded-bl-md bg-surface text-fg ring-1 ring-tinta/8 shadow-[0_1px_2px_rgb(15_27_45/0.06)]",
+                      )}
+                    >
+                      {msg.text}
+                    </m.div>
+                  </div>
+                );
+              })}
+              {escribiendo && (
+                <div className="flex items-end justify-start gap-2">
+                  <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-tinta text-papel">
+                    <Bot className="h-3.5 w-3.5" />
+                  </span>
+                  <m.div
+                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ duration: 0.2, ease: EASE }}
+                    style={{ transformOrigin: "bottom left" }}
+                    role="status"
+                    aria-label="El asistente está escribiendo"
+                    className="flex items-center gap-1.5 rounded-[20px] rounded-bl-md bg-surface px-4 py-3.5 text-fg ring-1 ring-tinta/8"
+                  >
+                    <span className="chat-punto h-1.5 w-1.5 rounded-full bg-fg-muted" />
+                    <span className="chat-punto h-1.5 w-1.5 rounded-full bg-fg-muted" />
+                    <span className="chat-punto h-1.5 w-1.5 rounded-full bg-fg-muted" />
+                  </m.div>
+                </div>
+              )}
+            </div>
+
+            {msgs.length <= 2 && (
+              <div className="flex flex-wrap gap-2 px-4 pb-3">
+                <p className="w-full text-[11px] font-semibold uppercase tracking-wider text-fg-muted">Preguntas frecuentes</p>
+                {QUICK.map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    disabled={escribiendo}
+                    onClick={() => send(q)}
+                    className="rounded-full bg-surface px-3.5 py-1.5 text-xs font-medium text-fg-secondary ring-1 ring-tinta/12 transition-[background-color,color,box-shadow] duration-150 hover:bg-brand hover:text-white hover:ring-brand disabled:opacity-50"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                send(input);
+              }}
+              className="p-3 pt-2"
+            >
+              <div className="flex items-center gap-1 rounded-full bg-surface py-1.5 pl-4 pr-1.5 ring-1 ring-tinta/12 transition-[box-shadow] focus-within:ring-2 focus-within:ring-brand">
+                <input
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Escribe tu pregunta…"
+                  className="h-9 flex-1 bg-transparent text-sm outline-none placeholder:text-fg-muted"
+                />
+                <button
+                  type="submit"
+                  aria-label="Enviar"
+                  disabled={escribiendo || !input.trim()}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-white transition-[background-color,transform] duration-150 hover:bg-brand-dark active:scale-95 disabled:bg-tinta/15 disabled:text-fg-muted"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
+              </div>
+            </form>
+          </m.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

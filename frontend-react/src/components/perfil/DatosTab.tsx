@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Alert, Avatar, Button, Card, Field, Input, Modal, Select } from "@/components/ui";
 import UbicacionFields from "@/components/UbicacionFields";
+import RecortarFoto from "@/components/perfil/RecortarFoto";
 import { apiFetch, fileUrl } from "@/lib/api";
 import { fullName } from "@/lib/format";
 import type { Usuario } from "@/lib/types";
@@ -56,6 +57,18 @@ export default function DatosTab({ user }: { user: Usuario }) {
     }
   }
 
+  const [porRecortar, setPorRecortar] = useState<File | null>(null);
+
+  function elegirFoto(file: File | undefined) {
+    if (!file) return;
+    if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) {
+      toast("JPG o PNG, máx. 5 MB", "error");
+      return;
+    }
+    setPorRecortar(file);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
   async function subirFoto(file: File | undefined) {
     if (!file) return;
     setPhotoBusy(true);
@@ -103,7 +116,8 @@ export default function DatosTab({ user }: { user: Usuario }) {
         <Avatar name={fullName(user)} src={user.tiene_foto ? fileUrl.foto(user.id, user.foto_version) : null} size={120} className="mx-auto" />
         <p className="mt-3 font-semibold text-fg">{fullName(user)}</p>
         <p className="text-sm text-fg-muted">{user.rut}</p>
-        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => subirFoto(e.target.files?.[0])} />
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => elegirFoto(e.target.files?.[0])} />
+        <RecortarFoto file={porRecortar} onCancel={() => setPorRecortar(null)} onConfirm={async (f) => { await subirFoto(f); setPorRecortar(null); }} />
         <div className="mt-4 flex justify-center gap-2">
           <Button size="sm" variant="outline" loading={photoBusy} onClick={() => fileRef.current?.click()}>
             <Camera className="h-4 w-4" /> Cambiar foto

@@ -4,6 +4,7 @@ import { Award, Camera, Plus, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Alert, Avatar, Button, Card, ErrorState, Field, Input, Select, Spinner, Textarea } from "@/components/ui";
 import UbicacionFields from "@/components/UbicacionFields";
+import RecortarFoto from "@/components/perfil/RecortarFoto";
 import { apiFetch, fileUrl } from "@/lib/api";
 import { AREAS_VOLUNTARIADO } from "@/lib/constants";
 import type { Organizacion } from "@/lib/types";
@@ -70,6 +71,18 @@ function Editor({ org, onSaved }: { org: Organizacion; onSaved: (o: Organizacion
     }
   }
 
+  const [porRecortar, setPorRecortar] = useState<File | null>(null);
+
+  function elegirLogo(file: File | undefined) {
+    if (!file) return;
+    if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) {
+      toast("JPG o PNG, máx. 5 MB", "error");
+      return;
+    }
+    setPorRecortar(file);
+    if (logoRef.current) logoRef.current.value = "";
+  }
+
   async function subirLogo(file: File | undefined) {
     if (!file) return;
     setUploading(true);
@@ -85,6 +98,20 @@ function Editor({ org, onSaved }: { org: Organizacion; onSaved: (o: Organizacion
     } finally {
       setUploading(false);
       if (logoRef.current) logoRef.current.value = "";
+    }
+  }
+
+  async function eliminarLogo() {
+    setUploading(true);
+    try {
+      const updated = await apiFetch<Organizacion>("/organizaciones/mia/logo", { method: "DELETE" });
+      onSaved(updated);
+      setForm(updated);
+      toast("Logo eliminado");
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -128,10 +155,18 @@ function Editor({ org, onSaved }: { org: Organizacion; onSaved: (o: Organizacion
         <div className="space-y-6">
           <Card className="p-6 text-center">
             <Avatar name={form.nombre} src={form.tiene_logo ? fileUrl.logo(form.id, form.logo_version) : null} size={120} className="mx-auto" />
-            <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => subirLogo(e.target.files?.[0])} />
-            <Button size="sm" variant="outline" className="mt-4" loading={uploading} onClick={() => logoRef.current?.click()}>
-              <Camera className="h-4 w-4" /> Cambiar logo
-            </Button>
+            <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => elegirLogo(e.target.files?.[0])} />
+            <RecortarFoto file={porRecortar} titulo="Ajusta el logo" formato="image/png" onCancel={() => setPorRecortar(null)} onConfirm={async (f) => { await subirLogo(f); setPorRecortar(null); }} />
+            <div className="mt-4 flex justify-center gap-2">
+              <Button size="sm" variant="outline" loading={uploading} onClick={() => logoRef.current?.click()}>
+                <Camera className="h-4 w-4" /> Cambiar logo
+              </Button>
+              {form.tiene_logo && (
+                <Button size="sm" variant="ghost" aria-label="Quitar logo" title="Quitar logo" disabled={uploading} onClick={eliminarLogo}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </Card>
           <Card className="p-6">
             <h3 className="font-semibold text-fg">Certificaciones</h3>

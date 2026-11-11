@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Award, Building2, Clock, Download, FileCheck2, HeartHandshake, Mail, MapPin, Pencil, Phone, Star } from "lucide-react";
+import { ArrowLeft, Award, Building2, Download, FileCheck2, HeartHandshake, Mail, MapPin, Pencil, Phone, Star } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
@@ -129,48 +129,52 @@ function Perfil({ user }: { user: Usuario }) {
     );
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      {/* Banner + franja con nombre (layout de referencia del template) */}
-      <section className="overflow-clip rounded-3xl border border-tinta/15 shadow-[0_20px_40px_-18px_rgb(15_27_45/0.3)]">
-        <div className="relative h-36 bg-brand sm:h-40" aria-hidden />
-        <div className="relative bg-surface px-4 pb-5 pt-16 sm:px-8 sm:pt-4">
-          <div className="absolute -top-12 left-6 sm:-top-14 sm:left-8">
-            <Avatar name={fullName(user)} src={user.tiene_foto ? fileUrl.foto(user.id, user.foto_version) : null} size={112} className="ring-4 ring-surface" />
-          </div>
-          <Button size="sm" variant="outline" className="absolute right-4 top-3" onClick={() => setModo("datos")}>
-            <Pencil className="h-4 w-4" /> Editar perfil
-          </Button>
-          <div className="sm:pl-32">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="font-display text-2xl font-bold leading-tight text-fg">{fullName(user)}</h1>
-              <Badge tone="blue">{ROL_LABEL[user.rol]}</Badge>
-              {user.organizacion && (
-                <Link
-                  href={`/organizaciones/${user.organizacion.id}`}
-                  className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-tinta bg-ambar/25 px-3 py-1 text-xs font-semibold text-fg transition-colors hover:bg-ambar/40"
-                  title="Ver perfil de la organización"
-                >
-                  <Building2 className="h-3.5 w-3.5" /> {user.organizacion.nombre ?? "Organización"}
-                  <span className="font-normal text-fg-muted">· {user.organizacion.rol === "miembro" ? "Miembro" : "Administrador"}</span>
-                </Link>
-              )}
+    <>
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <section className="overflow-clip rounded-3xl border border-tinta/15 shadow-[0_20px_40px_-18px_rgb(15_27_45/0.3)]">
+          <div className="relative h-36 bg-brand sm:h-40" aria-hidden />
+          <div className="relative bg-surface px-4 pb-6 pt-28 sm:px-8 sm:pt-5">
+            <div className="absolute -top-16 left-6 sm:-top-20 sm:left-8">
+              <Avatar name={fullName(user)} src={user.tiene_foto ? fileUrl.foto(user.id, user.foto_version) : null} size={152} className="ring-4 ring-surface" />
             </div>
-            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-fg-muted">
-              <span className="flex items-center gap-1.5">
-                <Clock className="h-4 w-4" /> {formatNumber(user.horas_voluntariado)} horas de voluntariado
-              </span>
-              {edadUsuario != null && <span>{edadUsuario} años</span>}
-              {ubicacion && (
-                <span className="flex items-center gap-1.5">
-                  <MapPin className="h-4 w-4" /> {ubicacion}
+            <Button size="sm" variant="outline" className="absolute right-4 top-4" onClick={() => setModo("datos")}>
+              <Pencil className="h-4 w-4" /> Editar perfil
+            </Button>
+            <div className="sm:min-h-[4.5rem] sm:pl-48">
+              <h1 className="font-display text-[clamp(1.875rem,1.4rem+1.8vw,2.75rem)] leading-[0.95] tracking-[-0.03em] text-fg">
+                <span className="linea">
+                  <span>{fullName(user)}</span>
                 </span>
-              )}
+              </h1>
+              <div className="hero-sigue mt-3 flex flex-wrap items-center gap-2.5">
+                <Badge tone="blue">{ROL_LABEL[user.rol]}</Badge>
+                {user.organizacion && (
+                  <Link
+                    href={`/organizaciones/${user.organizacion.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-tinta bg-ambar/25 px-3 py-1 text-xs font-semibold text-fg transition-colors hover:bg-ambar/40"
+                    title="Ver perfil de la organización"
+                  >
+                    <Building2 className="h-3.5 w-3.5" /> {user.organizacion.nombre ?? "Organización"}
+                    <span className="font-normal text-fg-muted">· {user.organizacion.rol === "miembro" ? "Miembro" : "Administrador"}</span>
+                  </Link>
+                )}
+              </div>
+              <div className="hero-sigue mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-1 text-sm text-fg-muted">
+                <span>
+                  <span className="font-display text-lg text-fg">{formatNumber(user.horas_voluntariado)}</span> horas de voluntariado
+                </span>
+                {edadUsuario != null && <span>{edadUsuario} años</span>}
+                {ubicacion && (
+                  <span className="flex items-center gap-1.5 self-center">
+                    <MapPin className="h-4 w-4" /> {ubicacion}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <main className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Columna izquierda */}
         <section className="space-y-6 lg:col-span-2">
           <Card className="p-6">
@@ -229,8 +233,9 @@ function Perfil({ user }: { user: Usuario }) {
 
           <CertificadosPanel user={user} postulaciones={lista} onGestionar={() => setModo("documentos")} />
         </aside>
-      </main>
-    </div>
+        </div>
+      </div>
+    </>
   );
 }
 
