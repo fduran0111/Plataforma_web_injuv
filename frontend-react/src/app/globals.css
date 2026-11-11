@@ -140,17 +140,17 @@
     box-shadow: 0 28px 52px -18px rgb(15 27 45 / 0.38);
   }
 
-  /* Botón sólido: borde de tinta y sombra dura corta que se "aprieta" al pulsar */
+  /* Botón sólido: borde de tinta y sombra suave que se "aprieta" al pulsar */
   .boton-solido {
-    box-shadow: 2px 2px 0 0 var(--tinta);
+    box-shadow: 0 4px 10px -6px rgb(15 27 45 / 0.35);
   }
   .boton-solido:hover {
-    transform: translate(-1px, -1px);
-    box-shadow: 3px 3px 0 0 var(--tinta);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 16px -8px rgb(15 27 45 / 0.4);
   }
   .boton-solido:active {
-    transform: translate(2px, 2px);
-    box-shadow: 0 0 0 0 var(--tinta);
+    transform: translateY(1px);
+    box-shadow: 0 1px 3px -1px rgb(15 27 45 / 0.3);
   }
   @media (prefers-reduced-motion: reduce) {
     .boton-solido:hover,

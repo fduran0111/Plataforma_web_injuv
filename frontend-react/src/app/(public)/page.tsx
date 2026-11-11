@@ -236,8 +236,8 @@ export default function HomePage() {
 
       {/* Cifras */}
       <section className="bg-brand text-white">
-        <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
-          <Stagger className="grid grid-cols-2 gap-x-8 gap-y-12 lg:grid-cols-4 lg:gap-x-12">
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
+          <Stagger className="grid grid-cols-2 gap-x-8 gap-y-8 lg:grid-cols-4 lg:gap-x-12">
             {[
               { label: "Voluntarios registrados", value: stats.data?.voluntarios },
               { label: "Organizaciones", value: stats.data?.organizaciones },
@@ -263,6 +263,8 @@ export default function HomePage() {
             title="Voluntariados abiertos"
             action={
               <div className="flex items-center gap-2">
+                {!!oportunidades.data?.length && (
+                <>
                 <button
                   type="button"
                   aria-label="Anterior"
@@ -281,6 +283,8 @@ export default function HomePage() {
                 >
                   <ArrowRight className="h-4 w-4" />
                 </button>
+                </>
+                )}
                 <LinkButton href="/oportunidades" variant="outline" className="ml-2">
                   Ver todas <ArrowRight className="h-4 w-4" />
                 </LinkButton>
