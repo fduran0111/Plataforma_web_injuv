@@ -227,7 +227,7 @@ def generar_certificado(postulacion_id: int, db: DbSession, user: CurrentUser) -
     voluntario = db.get(Usuario, p.usuario_id)
     pdf = certificado_service.generar_certificado(p, op, org, voluntario)
     name = f"certificado_{p.id}_{datetime.now():%Y%m%d_%H%M%S}.pdf"
-    (files.folder_path(CERT_FOLDER) / name).write_bytes(pdf)
+    files.guardar_bytes(CERT_FOLDER, name, pdf, "application/pdf")
     files.delete(CERT_FOLDER, p.ruta_certificado_pdf)
     p.ruta_certificado_pdf = name
     p.tiene_certificado = True
@@ -246,8 +246,8 @@ def eliminar_certificado(postulacion_id: int, db: DbSession, user: CurrentUser) 
 @router.post("/{postulacion_id}/enviar-certificado")
 def enviar_certificado(postulacion_id: int, body: EnviarCertificadoBody, db: DbSession, user: CurrentUser) -> dict[str, str]:
     p, op, org = _managed(db, postulacion_id, user)
-    path = files.resolve(CERT_FOLDER, p.ruta_certificado_pdf)
-    if not path:
+    pdf = files.leer_bytes(CERT_FOLDER, p.ruta_certificado_pdf)
+    if pdf is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "No hay certificado subido para esta postulación")
     u = db.get(Usuario, p.usuario_id)
     destino = body.email or (u.email if u else None)
@@ -260,7 +260,7 @@ def enviar_certificado(postulacion_id: int, body: EnviarCertificadoBody, db: DbS
         f"<p>Hola <strong>{escape((u.nombre if u else '') or 'voluntario/a')}</strong>,</p>"
         f"<p>Adjuntamos tu certificado de participación en <strong>{escape(op.titulo)}</strong> "
         f"({escape((org.nombre if org else '') or 'INJUV')}). ¡Gracias por tu compromiso!</p>",
-        attachment=("certificado_voluntariado.pdf", path.read_bytes(), "application/pdf"),
+        attachment=("certificado_voluntariado.pdf", pdf, "application/pdf"),
     )
     if not ok:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "No se pudo enviar el correo")

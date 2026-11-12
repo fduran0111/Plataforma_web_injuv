@@ -19,3 +19,16 @@ services:
         value: "3.12.8"
       - key: PYTHONPATH
         value: src
+      # Cloudflare R2 (archivos subidos). Los valores se cargan en el panel de Render.
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        value: injuv-privado
+      - key: R2_PUBLIC_BUCKET
+        value: injuv-publico
+      - key: R2_PUBLIC_URL
+        sync: false
