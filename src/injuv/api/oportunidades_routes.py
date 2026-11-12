@@ -4,14 +4,14 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
-from sqlalchemy import and_, func, or_, select, update
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, UploadFile, status
+from sqlalchemy import Text, and_, cast, func, or_, select, update
 
 from injuv.api.deps import CurrentUser, DbSession, MemberOrganization, OptionalUser
 from injuv.db.models import Oportunidad, Organizacion, Postulacion, Usuario
-from injuv.schemas.oportunidades import CorreoMasivoBody, EstadoOportunidadBody, FechasBody, OportunidadBody
+from injuv.schemas.oportunidades import CorreoMasivoBody, EstadoOportunidadBody, FechasBody, OportunidadBody, PostularBody
 from injuv.security.rbac import is_admin, normalize_role
-from injuv.services import mailer, serializers
+from injuv.services import files, mailer, serializers
 from injuv.services.catalogo import ESTADO_DECLINADA, ESTADOS_OPORTUNIDAD_ABIERTOS
 
 router = APIRouter(prefix="/oportunidades", tags=["Oportunidades"])
@@ -100,8 +100,19 @@ def _serialize(db: DbSession, op: Oportunidad) -> dict[str, Any]:
 
 
 def _apply_body(op: Oportunidad, body: OportunidadBody) -> None:
-    for field, value in body.model_dump().items():
+    for field, value in body.model_dump(exclude={"ubicaciones", "preguntas"}).items():
         setattr(op, _FIELD_MAP.get(field, field), value)
+    op.preguntas = [q.model_dump() for q in body.preguntas]
+    if body.ubicaciones:
+        # La primera ubicación es la principal: queda también en los campos clásicos
+        # para que filtros, la app móvil y datos antiguos sigan funcionando.
+        op.ubicaciones = [u.model_dump() for u in body.ubicaciones]
+        principal = op.ubicaciones[0]
+        op.region_opor, op.ciudad_opor, op.comuna_opor = principal["region"], principal["ciudad"], principal["comuna"]
+    else:
+        op.ubicaciones = [
+            {"region": op.region_opor, "ciudad": op.ciudad_opor, "comuna": op.comuna_opor}
+        ] if op.region_opor else []
 
 
 @router.get("")
@@ -128,7 +139,13 @@ def listar(
     elif not estado:
         stmt = stmt.where(Oportunidad.estado.in_(ESTADOS_OPORTUNIDAD_ABIERTOS))
     if region:
-        stmt = stmt.where(or_(Oportunidad.region_opor.ilike(f"%{region}%"), Organizacion.region.ilike(f"%{region}%")))
+        stmt = stmt.where(
+            or_(
+                Oportunidad.region_opor.ilike(f"%{region}%"),
+                Organizacion.region.ilike(f"%{region}%"),
+                cast(Oportunidad.ubicaciones, Text).ilike(f"%{region}%"),
+            )
+        )
     if area:
         stmt = stmt.where(Oportunidad.tipo_de_voluntariado.ilike(f"%{area}%"))
     if q:
@@ -283,7 +300,9 @@ def eliminar(oportunidad_id: int, db: DbSession, user: CurrentUser) -> None:
     op = get_oportunidad_or_404(db, oportunidad_id)
     ensure_can_manage(db, op, user)
     for p in db.scalars(select(Postulacion).where(Postulacion.oportunidad_id == op.id)):
+        files.delete("certificados_voluntarios", p.ruta_certificado_pdf)
         db.delete(p)
+    files.delete(IMAGEN_FOLDER, op.imagen_filename)
     db.delete(op)
     db.commit()
 
@@ -303,8 +322,29 @@ def postulantes(oportunidad_id: int, db: DbSession, user: CurrentUser, estado: s
     return [serializers.postulacion_para_org(p, u, op) for p, u in db.execute(stmt).all()]
 
 
+def _validar_respuestas(op: Oportunidad, respuestas: dict[str, str]) -> dict[str, str]:
+    """Respuestas limpias y validadas contra las preguntas de la convocatoria (lanza 400 si faltan o son inválidas)."""
+    preguntas = {q.get("id"): q for q in (op.preguntas or []) if isinstance(q, dict) and q.get("id")}
+    limpias: dict[str, str] = {}
+    for pid, q in preguntas.items():
+        resp = (respuestas.get(pid) or "").strip()[:1000]
+        if not resp:
+            if q.get("obligatoria", True):
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, f'Falta responder la pregunta: "{q.get("texto", "")}"')
+            continue
+        tipo = q.get("tipo")
+        if tipo == "si_no" and resp not in ("Sí", "No"):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f'La respuesta a "{q.get("texto", "")}" debe ser Sí o No')
+        if tipo == "alternativas" and resp not in (q.get("opciones") or []):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f'La respuesta a "{q.get("texto", "")}" no es una de las alternativas')
+        limpias[pid] = resp
+    return limpias
+
+
 @router.post("/{oportunidad_id}/postular", status_code=status.HTTP_201_CREATED)
-def postular(oportunidad_id: int, db: DbSession, user: CurrentUser, background: BackgroundTasks) -> dict[str, Any]:
+def postular(
+    oportunidad_id: int, db: DbSession, user: CurrentUser, background: BackgroundTasks, body: PostularBody | None = None
+) -> dict[str, Any]:
     op = get_oportunidad_or_404(db, oportunidad_id)
     if normalize_role(user.rol) != "user":
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo las cuentas de voluntario pueden postular")
@@ -328,6 +368,7 @@ def postular(oportunidad_id: int, db: DbSession, user: CurrentUser, background: 
         tiene_certificado=False,
         resena_org_publica=False,
         horas_voluntariado=0,
+        respuestas=_validar_respuestas(op, (body.respuestas if body else {}) or {}),
         created_at=now,
         updated_at=now,
     )
@@ -365,3 +406,37 @@ def correo_masivo(oportunidad_id: int, body: CorreoMasivoBody, db: DbSession, us
         for email, nombre in destinatarios
     )
     return {"enviados": enviados, "total": len(destinatarios)}
+
+
+IMAGEN_FOLDER = "imagenes_oportunidades"
+
+
+@router.get("/{oportunidad_id}/imagen")
+def imagen_oportunidad(oportunidad_id: int, db: DbSession):
+    """Imagen de la convocatoria (pública)."""
+    op = get_oportunidad_or_404(db, oportunidad_id)
+    return files.send(IMAGEN_FOLDER, op.imagen_filename)
+
+
+@router.put("/{oportunidad_id}/imagen")
+async def subir_imagen(
+    oportunidad_id: int, db: DbSession, user: CurrentUser, imagen: UploadFile = File(...)
+) -> dict[str, Any]:
+    """Banner opcional de la convocatoria: lo sube el encargado, el administrador de la org o INJUV."""
+    op = get_oportunidad_or_404(db, oportunidad_id)
+    ensure_can_manage(db, op, user)
+    name, _, _ = await files.save_upload(imagen, IMAGEN_FOLDER, f"op_{op.id}", files.IMAGE_EXTS, 5)
+    files.delete(IMAGEN_FOLDER, op.imagen_filename)
+    op.imagen_filename = name
+    db.commit()
+    return {"tiene_imagen": True}
+
+
+@router.delete("/{oportunidad_id}/imagen")
+def quitar_imagen(oportunidad_id: int, db: DbSession, user: CurrentUser) -> dict[str, Any]:
+    op = get_oportunidad_or_404(db, oportunidad_id)
+    ensure_can_manage(db, op, user)
+    files.delete(IMAGEN_FOLDER, op.imagen_filename)
+    op.imagen_filename = None
+    db.commit()
+    return {"tiene_imagen": False}

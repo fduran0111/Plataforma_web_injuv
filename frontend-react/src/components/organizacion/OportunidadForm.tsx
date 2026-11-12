@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { Plus, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
 import FechasFields, { validarPeriodo } from "@/components/organizacion/FechasFields";
-import UbicacionFields from "@/components/UbicacionFields";
+import UbicacionFields, { type Ubicacion } from "@/components/UbicacionFields";
 import { Alert, Button, Checkbox, Field, Input, Modal, Select, Textarea } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, fileUrl } from "@/lib/api";
 import { AREAS_VOLUNTARIADO } from "@/lib/constants";
-import type { Oportunidad } from "@/lib/types";
+import type { Oportunidad, TipoPregunta } from "@/lib/types";
 
 type FormState = {
   titulo: string;
@@ -49,6 +50,15 @@ const EMPTY: FormState = {
   responsable_telefono: "",
 };
 
+/** Pregunta en edición: `opciones` es texto separado por comas hasta que se guarda. */
+type PreguntaForm = { id?: string; texto: string; tipo: TipoPregunta; opciones: string; obligatoria: boolean };
+
+const PREGUNTA_TIPOS = [
+  { value: "si_no", label: "Sí / No" },
+  { value: "alternativas", label: "Alternativas" },
+  { value: "texto", label: "Texto libre" },
+];
+
 function fromOportunidad(op: Oportunidad): FormState {
   return {
     titulo: op.titulo,
@@ -71,6 +81,11 @@ function fromOportunidad(op: Oportunidad): FormState {
   };
 }
 
+const preguntasDe = (op: Oportunidad): PreguntaForm[] =>
+  (op.preguntas ?? []).map((q) => ({ id: q.id, texto: q.texto, tipo: q.tipo, opciones: q.opciones.join(", "), obligatoria: q.obligatoria }));
+
+const ubicacionesExtraDe = (op: Oportunidad): Ubicacion[] => (op.ubicaciones ?? []).slice(1).map((u) => ({ ...u }));
+
 type Integrante = { id: number; nombre: string; apellido: string; email: string; telefono: string; rol: "admin" | "miembro" };
 
 export default function OportunidadForm({
@@ -85,6 +100,11 @@ export default function OportunidadForm({
   onSaved: (op: Oportunidad) => void;
 }) {
   const [form, setForm] = useState<FormState>(oportunidad ? fromOportunidad(oportunidad) : EMPTY);
+  const [extras, setExtras] = useState<Ubicacion[]>(oportunidad ? ubicacionesExtraDe(oportunidad) : []);
+  const [preguntas, setPreguntas] = useState<PreguntaForm[]>(oportunidad ? preguntasDe(oportunidad) : []);
+  const [imagen, setImagen] = useState<File | null>(null);
+  const [quitarImagen, setQuitarImagen] = useState(false);
+  const imagenRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const { data: integrantes } = useApi<Integrante[]>(open ? "/organizaciones/mia/integrantes" : null);
@@ -115,15 +135,25 @@ export default function OportunidadForm({
 
   const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
+  const setPregunta = (i: number, patch: Partial<PreguntaForm>) =>
+    setPreguntas((prev) => prev.map((q, j) => (j === i ? { ...q, ...patch } : q)));
   const num = (v: string) => (v ? Number(v) : null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const errorFechas = validarPeriodo(form);
     if (errorFechas) return setError(errorFechas);
+    const pregIncompleta = preguntas.find((q) => !q.texto.trim());
+    if (pregIncompleta) return setError("Hay una pregunta sin texto. Complétala o quítala.");
+    const sinOpciones = preguntas.find(
+      (q) => q.tipo === "alternativas" && q.opciones.split(",").map((o) => o.trim()).filter(Boolean).length < 2,
+    );
+    if (sinOpciones) return setError(`La pregunta "${sinOpciones.texto}" necesita al menos 2 alternativas (separadas por coma).`);
     setError(null);
     setSaving(true);
     try {
+      // La ubicación principal va primera en la lista; el backend la copia a los campos clásicos.
+      const ubicaciones = [{ region: form.region, ciudad: form.ciudad, comuna: form.comuna }, ...extras].filter((u) => u.region);
       const body = {
         ...form,
         tipo_de_voluntariado: form.tipo_de_voluntariado || null,
@@ -136,6 +166,14 @@ export default function OportunidadForm({
         region: form.region || null,
         ciudad: form.ciudad || null,
         comuna: form.comuna || null,
+        ubicaciones,
+        preguntas: preguntas.map((q) => ({
+          id: q.id,
+          texto: q.texto.trim(),
+          tipo: q.tipo,
+          opciones: q.tipo === "alternativas" ? q.opciones.split(",").map((o) => o.trim()).filter(Boolean) : [],
+          obligatoria: q.obligatoria,
+        })),
         responsable_nombre: form.responsable_nombre || null,
         responsable_apellido: form.responsable_apellido || null,
         responsable_email: form.responsable_email || null,
@@ -146,6 +184,16 @@ export default function OportunidadForm({
       const saved = oportunidad
         ? await apiFetch<Oportunidad>(`/oportunidades/${oportunidad.id}`, { method: "PUT", body })
         : await apiFetch<Oportunidad>("/oportunidades", { method: "POST", body });
+      // La imagen se sube o se quita después de guardar el voluntariado.
+      if (imagen) {
+        const data = new FormData();
+        data.append("imagen", imagen);
+        await apiFetch(`/oportunidades/${saved.id}/imagen`, { method: "PUT", body: data });
+        saved.tiene_imagen = true;
+      } else if (quitarImagen && oportunidad?.tiene_imagen) {
+        await apiFetch(`/oportunidades/${saved.id}/imagen`, { method: "DELETE" });
+        saved.tiene_imagen = false;
+      }
       onSaved(saved);
       onClose();
     } catch (err) {
@@ -194,6 +242,30 @@ export default function OportunidadForm({
           {(id) => <Input id={id} type="number" min={1} value={form.meta_postulantes} onChange={set("meta_postulantes")} />}
         </Field>
         <div className="sm:col-span-2 mt-2 border-t border-border pt-4">
+          <p className="text-sm font-semibold text-fg">Imagen de la convocatoria (opcional)</p>
+          <p className="mb-3 mt-0.5 text-xs text-fg-muted">Se muestra como banner en la página del voluntariado y le da identidad a la convocatoria.</p>
+          {(oportunidad?.tiene_imagen && !quitarImagen && !imagen) && (
+            <div className="mb-3 flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element -- imagen de la API */}
+              <img src={fileUrl.oportunidad(oportunidad.id)} alt="Imagen actual de la convocatoria" className="h-16 w-28 rounded-lg object-cover" />
+              <Button type="button" variant="ghost" size="sm" onClick={() => setQuitarImagen(true)}>
+                <Trash2 className="h-4 w-4" /> Quitar
+              </Button>
+            </div>
+          )}
+          <input
+            ref={imagenRef}
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              setImagen(e.target.files?.[0] ?? null);
+              setQuitarImagen(false);
+            }}
+            className="block w-full text-sm text-fg-secondary file:mr-4 file:rounded-lg file:border-0 file:bg-brand-soft file:px-4 file:py-2 file:text-sm file:font-semibold file:text-brand"
+          />
+          {imagen && <p className="mt-1.5 text-xs text-fg-muted">Se subirá al guardar: {imagen.name}</p>}
+        </div>
+        <div className="sm:col-span-2 mt-2 border-t border-border pt-4">
           <p className="text-sm font-semibold text-fg">Período del voluntariado</p>
           <p className="mb-4 mt-0.5 text-xs text-fg-muted">
             {oportunidad
@@ -212,6 +284,103 @@ export default function OportunidadForm({
           comuna={form.comuna}
           onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
         />
+        <div className="sm:col-span-2">
+          <p className="mb-1 mt-1 text-xs text-fg-muted">
+            ¿El voluntariado se realiza en más de una comuna o región? Agrégalas aquí (la de arriba es la principal).
+          </p>
+          {extras.map((u, i) => (
+            <div key={i} className="mb-2 flex items-end gap-2 rounded-xl border border-border/70 p-3">
+              <UbicacionFields
+                region={u.region}
+                ciudad={u.ciudad}
+                comuna={u.comuna}
+                onChange={(patch) => setExtras((prev) => prev.map((x, j) => (j === i ? { ...x, ...patch } : x)))}
+                className="grid flex-1 gap-4 sm:grid-cols-3"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label="Quitar ubicación"
+                onClick={() => setExtras((prev) => prev.filter((_, j) => j !== i))}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setExtras((prev) => [...prev, { region: "", ciudad: "", comuna: "" }])}
+          >
+            <Plus className="h-4 w-4" /> Agregar otra ubicación
+          </Button>
+        </div>
+        <div className="sm:col-span-2 mt-2 border-t border-border pt-4">
+          <p className="text-sm font-semibold text-fg">Preguntas para postulantes</p>
+          <p className="mb-3 mt-0.5 text-xs text-fg-muted">
+            Quienes postulen las responden antes de enviar su postulación. Las respuestas solo las ve tu organización y sirven para filtrar postulantes.
+          </p>
+          {preguntas.map((q, i) => (
+            <div key={i} className="mb-2 space-y-3 rounded-xl border border-border/70 p-3">
+              <div className="flex items-start gap-2">
+                <Input
+                  aria-label={`Pregunta ${i + 1}`}
+                  required
+                  minLength={3}
+                  maxLength={300}
+                  value={q.texto}
+                  onChange={(e) => setPregunta(i, { texto: e.target.value })}
+                  placeholder={`Pregunta ${i + 1}: ej. ¿Cuentas con movilización propia?`}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Quitar pregunta"
+                  onClick={() => setPreguntas((prev) => prev.filter((_, j) => j !== i))}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[12rem_1fr_auto] sm:items-end">
+                <Field label="Tipo de respuesta">
+                  {(id) => (
+                    <Select id={id} value={q.tipo} onChange={(e) => setPregunta(i, { tipo: e.target.value as TipoPregunta })} options={PREGUNTA_TIPOS} />
+                  )}
+                </Field>
+                {q.tipo === "alternativas" ? (
+                  <Field label="Alternativas" hint="Separadas por coma">
+                    {(id) => (
+                      <Input
+                        id={id}
+                        value={q.opciones}
+                        onChange={(e) => setPregunta(i, { opciones: e.target.value })}
+                        placeholder="Ej: Mañana, Tarde, Fin de semana"
+                      />
+                    )}
+                  </Field>
+                ) : (
+                  <span />
+                )}
+                <div className="pb-2">
+                  <Checkbox checked={q.obligatoria} onChange={(e) => setPregunta(i, { obligatoria: e.target.checked })} label="Obligatoria" />
+                </div>
+              </div>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={preguntas.length >= 10}
+            onClick={() => setPreguntas((prev) => [...prev, { texto: "", tipo: "si_no", opciones: "", obligatoria: true }])}
+          >
+            <Plus className="h-4 w-4" /> Agregar pregunta
+          </Button>
+        </div>
         <div className="sm:col-span-2 mt-2 border-t border-border pt-4">
           <p className="text-sm font-semibold text-fg">Encargados del voluntariado</p>
           <p className="mb-3 mt-0.5 text-xs text-fg-muted">

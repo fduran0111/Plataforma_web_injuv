@@ -115,6 +115,12 @@ class Oportunidad(Base):
     comuna_opor: Mapped[str | None] = mapped_column(String(255))
     tipo_de_voluntariado: Mapped[str | None] = mapped_column(String(100))
     encargados_ids: Mapped[Any] = mapped_column(JSONB, default=list)
+    # Ubicaciones adicionales del voluntariado: [{"region": ..., "ciudad": <provincia>, "comuna": ...}].
+    # La primera coincide con region_opor/ciudad_opor/comuna_opor (compatibilidad con filtros y app móvil).
+    ubicaciones: Mapped[Any] = mapped_column(JSONB, default=list)
+    imagen_filename: Mapped[str | None] = mapped_column(String(255))
+    # Preguntas que responde el postulante: [{"id","texto","tipo","opciones","obligatoria"}]
+    preguntas: Mapped[Any] = mapped_column(JSONB, default=list)
     created_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
@@ -132,6 +138,8 @@ class Postulacion(Base):
     asistencia_actividad: Mapped[str | None] = mapped_column(String(20))
     tiene_certificado: Mapped[bool | None] = mapped_column(Boolean)
     ruta_certificado_pdf: Mapped[str | None] = mapped_column(Text)
+    # Respuestas a las preguntas de la convocatoria: {"<id pregunta>": "respuesta"} (solo las ve la organización).
+    respuestas: Mapped[Any] = mapped_column(JSONB, default=dict)
     # Reseña y nota de la organización sobre el voluntario
     resena_org_sobre_voluntario: Mapped[str | None] = mapped_column(Text)
     resena_org_publica: Mapped[bool | None] = mapped_column(Boolean)

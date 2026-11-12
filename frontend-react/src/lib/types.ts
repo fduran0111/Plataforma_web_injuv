@@ -31,6 +31,23 @@ export type Usuario = {
 
 export type EstadoOportunidad = "activa" | "abierta" | "cerrada";
 
+export type UbicacionOportunidad = {
+  region: string;
+  /** Provincia (el campo en la BD/API sigue llamándose `ciudad`). */
+  ciudad: string;
+  comuna: string;
+};
+
+export type TipoPregunta = "si_no" | "alternativas" | "texto";
+
+export type PreguntaOportunidad = {
+  id: string;
+  texto: string;
+  tipo: TipoPregunta;
+  opciones: string[];
+  obligatoria: boolean;
+};
+
 export type Oportunidad = {
   id: number;
   titulo: string;
@@ -53,6 +70,11 @@ export type Oportunidad = {
   region: string;
   ciudad: string;
   comuna: string;
+  /** Todas las ubicaciones del voluntariado (la primera es la principal, igual a region/ciudad/comuna). */
+  ubicaciones: UbicacionOportunidad[];
+  tiene_imagen: boolean;
+  /** Preguntas que el postulante responde al postular. */
+  preguntas: PreguntaOportunidad[];
   tipo_de_voluntariado: string;
   /** Integrantes de la organización a cargo (pueden gestionar el voluntariado y sus postulantes). */
   encargados_ids: number[];
@@ -75,6 +97,8 @@ export type PostulacionBase = {
   asistencia_actividad: Asistencia;
   horas_voluntariado: number;
   tiene_certificado: boolean;
+  /** Respuestas a las preguntas de la convocatoria: { idPregunta: respuesta }. */
+  respuestas: Record<string, string>;
   resena_org: string;
   resena_org_publica: boolean;
   calificacion_org: number | null;

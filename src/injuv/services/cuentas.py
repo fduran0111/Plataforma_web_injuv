@@ -24,6 +24,7 @@ def eliminar_organizacion(db: Session, org: Organizacion) -> None:
             files.delete("certificados_voluntarios", p.ruta_certificado_pdf)
             db.delete(p)
         for op in db.scalars(select(Oportunidad).where(Oportunidad.id.in_(op_ids))):
+            files.delete("imagenes_oportunidades", op.imagen_filename)
             db.delete(op)
     for doc in db.scalars(select(AcademiaDocumento).where(AcademiaDocumento.organizacion_id == org.id)):
         files.delete("repositorio_academia", doc.archivo_filename)

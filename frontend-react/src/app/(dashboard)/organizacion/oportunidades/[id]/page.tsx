@@ -22,13 +22,20 @@ export default function PostulantesPage() {
   const op = useApi<Oportunidad>(`/oportunidades/${id}`);
   const postulantes = useApi<Postulante[]>(`/oportunidades/${id}/postulaciones`);
   const [estadoFiltro, setEstadoFiltro] = useState("todos");
+  // Filtro por respuesta a una pregunta de la convocatoria: {idPregunta: valor elegido}
+  const [filtroPregunta, setFiltroPregunta] = useState<Record<string, string>>({});
   const [correoOpen, setCorreoOpen] = useState(false);
   const [asunto, setAsunto] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [destinatarios, setDestinatarios] = useState("todos");
   const [sending, setSending] = useState(false);
 
-  const lista = (postulantes.data ?? []).filter((p) => estadoFiltro === "todos" || p.estado === estadoFiltro);
+  const preguntasFiltrables = (op.data?.preguntas ?? []).filter((q) => q.tipo !== "texto");
+  const lista = (postulantes.data ?? []).filter(
+    (p) =>
+      (estadoFiltro === "todos" || p.estado === estadoFiltro) &&
+      Object.entries(filtroPregunta).every(([pid, valor]) => !valor || (p.respuestas ?? {})[pid] === valor),
+  );
   const conteo = (e: string) => (postulantes.data ?? []).filter((p) => p.estado === e).length;
 
   async function enviarCorreo(e: React.FormEvent) {
@@ -76,6 +83,7 @@ export default function PostulantesPage() {
             {[o.comuna, o.region].filter(Boolean).length > 0 && (
               <span className="flex items-center gap-1.5">
                 <MapPin className="h-4 w-4" /> {[o.comuna, o.region].filter(Boolean).join(", ")}
+                {(o.ubicaciones?.length ?? 0) > 1 ? ` (+${o.ubicaciones.length - 1} ubicaciones más)` : ""}
               </span>
             )}
             <span className="flex items-center gap-1.5">
@@ -123,6 +131,27 @@ export default function PostulantesPage() {
         />
       </div>
 
+      {preguntasFiltrables.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          {preguntasFiltrables.map((q) => (
+            <Select
+              key={q.id}
+              aria-label={`Filtrar por: ${q.texto}`}
+              value={filtroPregunta[q.id] ?? ""}
+              onChange={(e) => setFiltroPregunta((f) => ({ ...f, [q.id]: e.target.value }))}
+              options={(q.tipo === "si_no" ? ["Sí", "No"] : q.opciones).map((v) => ({ value: v, label: v }))}
+              placeholder={`${q.texto} — todas`}
+              className="max-w-72"
+            />
+          ))}
+          {Object.values(filtroPregunta).some(Boolean) && (
+            <Button variant="ghost" size="sm" onClick={() => setFiltroPregunta({})}>
+              Limpiar filtros
+            </Button>
+          )}
+        </div>
+      )}
+
       <div className="mt-6 space-y-4">
         {!lista.length ? (
           <EmptyState
@@ -131,7 +160,7 @@ export default function PostulantesPage() {
             description={estadoFiltro === "todos" ? "Comparte el enlace público del voluntariado para atraer postulantes." : undefined}
           />
         ) : (
-          lista.map((p) => <PostulanteCard key={p.id} p={p} oportunidadTitulo={o.titulo} soloLectura={soloLectura} onChanged={(next) => postulantes.setData((prev) => (prev ?? []).map((x) => (x.id === next.id ? { ...x, ...next } : x)))} />)
+          lista.map((p) => <PostulanteCard key={p.id} p={p} oportunidadTitulo={o.titulo} preguntas={o.preguntas} soloLectura={soloLectura} onChanged={(next) => postulantes.setData((prev) => (prev ?? []).map((x) => (x.id === next.id ? { ...x, ...next } : x)))} />)
         )}
       </div>
 

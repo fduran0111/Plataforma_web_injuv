@@ -97,6 +97,17 @@ def organizacion(o: Organizacion, num_oportunidades: int | None = None) -> dict[
     return data
 
 
+def _ubicaciones(op: Oportunidad, org: Organizacion | None) -> list[dict[str, str]]:
+    """Todas las ubicaciones del voluntariado; si no hay lista, se arma con la ubicación principal."""
+    crudas = [u for u in (op.ubicaciones or []) if isinstance(u, dict) and (u.get("region") or "").strip()]
+    if crudas:
+        return [{"region": u.get("region") or "", "ciudad": u.get("ciudad") or "", "comuna": u.get("comuna") or ""} for u in crudas]
+    region = op.region_opor or (org.region if org else "") or ""
+    if not region:
+        return []
+    return [{"region": region, "ciudad": op.ciudad_opor or (org.ciudad if org else "") or "", "comuna": op.comuna_opor or (org.comuna if org else "") or ""}]
+
+
 def oportunidad(op: Oportunidad, org: Organizacion | None = None, num_postulaciones: int = 0) -> dict[str, Any]:
     return {
         "id": op.id,
@@ -120,6 +131,19 @@ def oportunidad(op: Oportunidad, org: Organizacion | None = None, num_postulacio
         "region": op.region_opor or (org.region if org else "") or "",
         "ciudad": op.ciudad_opor or (org.ciudad if org else "") or "",
         "comuna": op.comuna_opor or (org.comuna if org else "") or "",
+        "ubicaciones": _ubicaciones(op, org),
+        "tiene_imagen": bool(op.imagen_filename),
+        "preguntas": [
+            {
+                "id": q.get("id", ""),
+                "texto": q.get("texto", ""),
+                "tipo": q.get("tipo", "si_no"),
+                "opciones": q.get("opciones") or [],
+                "obligatoria": bool(q.get("obligatoria", True)),
+            }
+            for q in (op.preguntas or [])
+            if isinstance(q, dict) and q.get("texto")
+        ],
         "tipo_de_voluntariado": op.tipo_de_voluntariado or "",
         "encargados_ids": [x for x in (op.encargados_ids or []) if isinstance(x, int)],
         "num_postulaciones": num_postulaciones,
@@ -140,6 +164,7 @@ def postulacion_base(p: Postulacion) -> dict[str, Any]:
         "asistencia_actividad": p.asistencia_actividad or "No aplica",
         "horas_voluntariado": p.horas_voluntariado or 0,
         "tiene_certificado": bool(p.tiene_certificado and p.ruta_certificado_pdf),
+        "respuestas": {str(k): str(v) for k, v in (p.respuestas or {}).items()},
         "resena_org": p.resena_org_sobre_voluntario or "",
         "resena_org_publica": bool(p.resena_org_publica),
         "calificacion_org": _num(p.calificacion_org),

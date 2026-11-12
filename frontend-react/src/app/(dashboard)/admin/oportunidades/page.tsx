@@ -67,6 +67,7 @@ export default function AdminOportunidadesPage() {
                 {[op.comuna, op.region].filter(Boolean).length > 0 && (
                   <span className="flex items-center gap-1">
                     <MapPin className="h-3.5 w-3.5" /> {[op.comuna, op.region].filter(Boolean).join(", ")}
+                    {(op.ubicaciones?.length ?? 0) > 1 ? ` (+${op.ubicaciones.length - 1} más)` : ""}
                   </span>
                 )}
                 <span className="flex items-center gap-1">

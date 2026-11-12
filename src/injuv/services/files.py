@@ -33,7 +33,13 @@ VIDEO_EXTS = {".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm", ".mkv", ".m4v"}
 MB = 1024 * 1024
 
 # Imágenes que cualquiera puede ver: se sirven desde el CDN de Cloudflare sin pasar por la API.
-PUBLIC_FOLDERS = {"perfiles_usuarios", "logos_organizaciones", "imagenes_noticias", "portada_fotos"}
+PUBLIC_FOLDERS = {
+    "perfiles_usuarios",
+    "logos_organizaciones",
+    "imagenes_noticias",
+    "portada_fotos",
+    "imagenes_oportunidades",
+}
 
 # Los nombres llevan fecha y un token aleatorio: nunca se reutilizan, se pueden cachear "para siempre".
 _CACHE_PUBLICO = "public, max-age=31536000, immutable"

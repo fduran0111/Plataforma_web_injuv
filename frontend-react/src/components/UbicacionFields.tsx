@@ -16,8 +16,8 @@ function opciones(lista: string[], actual: string): string[] {
 }
 
 /**
- * Región → Ciudad (provincia) → Comuna en cascada. Al cambiar la región se limpian ciudad y comuna;
- * al cambiar la ciudad se limpia la comuna.
+ * Región → Provincia → Comuna en cascada. Al cambiar la región se limpian provincia y comuna;
+ * al cambiar la provincia se limpia la comuna.
  */
 export default function UbicacionFields({
   region,
@@ -51,7 +51,7 @@ export default function UbicacionFields({
           />
         )}
       </Field>
-      <Field label="Ciudad" required={required}>
+      <Field label="Provincia" required={required}>
         {(id) => (
           <Select
             id={id}
@@ -76,7 +76,7 @@ export default function UbicacionFields({
             disabled={!ciudad}
             onChange={(e) => onChange({ comuna: e.target.value })}
             options={opciones(comunas, comuna)}
-            placeholder={ciudad ? "Selecciona" : "Elige la ciudad primero"}
+            placeholder={ciudad ? "Selecciona" : "Elige la provincia primero"}
           />
         )}
       </Field>
