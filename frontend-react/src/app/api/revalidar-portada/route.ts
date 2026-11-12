@@ -11,5 +11,7 @@ export async function POST(req: Request) {
   const rol = me?.rol ?? me?.user?.rol;
   if (rol !== "admin") return Response.json({ error: "No autorizado" }, { status: 403 });
   revalidatePath("/");
+  revalidatePath("/login");
+  revalidatePath("/registro");
   return Response.json({ ok: true });
 }

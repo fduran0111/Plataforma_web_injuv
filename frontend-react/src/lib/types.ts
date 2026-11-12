@@ -269,9 +269,12 @@ export type PortadaConfig = {
   aviso_activo: boolean;
   aviso_texto: string | null;
   aviso_enlace: string | null;
+  acceso_titulo?: string | null;
+  acceso_subtitulo?: string | null;
+  acceso_cita?: string | null;
 };
 
 export type PortadaFoto = { id: number; archivo: string; alt: string; activa?: boolean; orden?: number; archivo_original?: string | null };
 
-export type PortadaPublica = { config: PortadaConfig; fotos: { inicio: PortadaFoto[]; galeria: PortadaFoto[] } };
+export type PortadaPublica = { config: PortadaConfig; fotos: { inicio: PortadaFoto[]; galeria: PortadaFoto[]; acceso?: PortadaFoto[] } };
 export type PortadaAdmin = PortadaPublica;

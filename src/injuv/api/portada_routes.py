@@ -18,19 +18,16 @@ router = APIRouter(prefix="/portada", tags=["Portada"])
 FOLDER = "portada_fotos"
 
 
+CAMPOS = (
+    "etiqueta", "titulo_linea1", "titulo_linea2", "titulo_resaltado", "subtitulo",
+    "aviso_activo", "aviso_texto", "aviso_enlace", "acceso_titulo", "acceso_subtitulo", "acceso_cita",
+)
+
+
 def _cfg(c: PortadaConfig | None) -> dict[str, Any]:
-    if c is None:
-        return {
-            "etiqueta": None, "titulo_linea1": None, "titulo_linea2": None,
-            "titulo_resaltado": None, "subtitulo": None,
-            "aviso_activo": False, "aviso_texto": None, "aviso_enlace": None,
-        }
-    return {
-        "etiqueta": c.etiqueta, "titulo_linea1": c.titulo_linea1,
-        "titulo_linea2": c.titulo_linea2, "titulo_resaltado": c.titulo_resaltado,
-        "subtitulo": c.subtitulo, "aviso_activo": bool(c.aviso_activo),
-        "aviso_texto": c.aviso_texto, "aviso_enlace": c.aviso_enlace,
-    }
+    d = {k: getattr(c, k, None) for k in CAMPOS}
+    d["aviso_activo"] = bool(d["aviso_activo"])
+    return d
 
 
 def _foto(f: PortadaFoto, admin: bool = False) -> dict[str, Any]:
@@ -44,7 +41,7 @@ def _foto(f: PortadaFoto, admin: bool = False) -> dict[str, Any]:
 
 def _payload(db, admin: bool) -> dict[str, Any]:
     cfg = db.get(PortadaConfig, 1)
-    fotos = {"inicio": [], "galeria": []}
+    fotos = {"inicio": [], "galeria": [], "acceso": []}
     for f in db.scalars(select(PortadaFoto).order_by(PortadaFoto.orden, PortadaFoto.id)):
         if f.seccion in fotos and (admin or f.activa):
             fotos[f.seccion].append(_foto(f, admin))
@@ -57,7 +54,7 @@ def portada_publica(db: DbSession) -> dict[str, Any]:
         return _payload(db, admin=False)
     except DBAPIError:
         db.rollback()
-        return {"config": _cfg(None), "fotos": {"inicio": [], "galeria": []}}
+        return {"config": _cfg(None), "fotos": {"inicio": [], "galeria": [], "acceso": []}}
 
 
 @router.get("/foto/{filename}")
@@ -73,10 +70,7 @@ def portada_admin(db: DbSession, _: AdminUser) -> dict[str, Any]:
 @router.put("/config")
 def guardar_config(body: PortadaConfigBody, db: DbSession, _: AdminUser) -> dict[str, Any]:
     c = db.get(PortadaConfig, 1) or PortadaConfig(id=1)
-    for campo in (
-        "etiqueta", "titulo_linea1", "titulo_linea2", "titulo_resaltado",
-        "subtitulo", "aviso_activo", "aviso_texto", "aviso_enlace",
-    ):
+    for campo in CAMPOS:
         setattr(c, campo, getattr(body, campo))
     c.updated_at = datetime.now()
     db.add(c)
@@ -88,7 +82,7 @@ def guardar_config(body: PortadaConfigBody, db: DbSession, _: AdminUser) -> dict
 async def subir_foto(
     db: DbSession,
     _: AdminUser,
-    seccion: Literal["inicio", "galeria"] = Form(...),
+    seccion: Literal["inicio", "galeria", "acceso"] = Form(...),
     alt: str = Form(..., min_length=3, max_length=200),
     imagen: UploadFile = File(...),
     original: UploadFile | None = File(None),

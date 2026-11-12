@@ -34,3 +34,12 @@ CREATE INDEX IF NOT EXISTS portada_fotos_seccion_orden ON portada_fotos (seccion
 
 -- Foto original sin recortar, para poder volver a encuadrarla sin perder calidad.
 ALTER TABLE portada_fotos ADD COLUMN IF NOT EXISTS archivo_original VARCHAR(255);
+
+-- Sección 'acceso': foto lateral de las páginas de inicio de sesión y registro.
+ALTER TABLE portada_fotos DROP CONSTRAINT IF EXISTS portada_fotos_seccion_check;
+ALTER TABLE portada_fotos ADD CONSTRAINT portada_fotos_seccion_check CHECK (seccion IN ('inicio', 'galeria', 'acceso'));
+
+-- Textos de los cuadros bajo la foto de inicio de sesión y registro (NULL = texto por defecto).
+ALTER TABLE portada_config ADD COLUMN IF NOT EXISTS acceso_titulo VARCHAR(80);
+ALTER TABLE portada_config ADD COLUMN IF NOT EXISTS acceso_subtitulo VARCHAR(120);
+ALTER TABLE portada_config ADD COLUMN IF NOT EXISTS acceso_cita VARCHAR(120);

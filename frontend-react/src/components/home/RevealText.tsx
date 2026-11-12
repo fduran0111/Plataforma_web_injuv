@@ -13,11 +13,13 @@ export default function RevealText({
   text,
   className,
   highlight,
+  highlightClassName = "text-ambar",
 }: {
   as?: "h1" | "h2" | "h3" | "p" | "span";
   text: string;
   className?: string;
   highlight?: string;
+  highlightClassName?: string;
 }) {
   const M = m[Tag];
   const i = highlight ? text.indexOf(highlight) : -1;
@@ -34,7 +36,7 @@ export default function RevealText({
       ) : (
         <>
           {text.slice(0, i)}
-          <span className="text-ambar">{highlight}</span>
+          <span className={highlightClassName}>{highlight}</span>
           {text.slice(i + highlight.length)}
         </>
       )}

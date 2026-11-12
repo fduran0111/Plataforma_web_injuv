@@ -103,18 +103,26 @@ const TITULO_H2 = "text-[clamp(2.5rem,1.4rem+3.6vw,4.75rem)] leading-[0.98] trac
 function SectionTitle({
   eyebrow,
   title,
+  highlight,
   action,
   inverse,
 }: {
   eyebrow: string;
   title: string;
+  highlight?: string;
   action?: React.ReactNode;
   inverse?: boolean;
 }) {
   return (
     <div className="mb-10 flex flex-wrap items-end justify-between gap-x-8 gap-y-6 lg:mb-12">
       <div>
-        <RevealText as="h2" text={title} className={cn(TITULO_H2, "max-w-[18ch]", inverse ? "text-white" : "text-fg")} />
+        <RevealText
+          as="h2"
+          text={title}
+          highlight={highlight}
+          highlightClassName={inverse ? "text-ambar" : "marcador-ambar"}
+          className={cn(TITULO_H2, "max-w-[18ch]", inverse ? "text-white" : "text-fg")}
+        />
         <p className={cn("mt-4 inline-flex items-center gap-3 text-base font-semibold", inverse ? "text-white/80" : "text-fg-muted")}>
           <span className="h-[3px] w-6 rounded-full bg-ambar" aria-hidden />
           {eyebrow}
@@ -241,7 +249,7 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
       </section>
 
       {/* Carrusel de fotos del programa */}
-      <GaleriaFotos titulo="Así se vive el voluntariado" fotos={portada?.fotos.galeria.length ? portada.fotos.galeria.map((f) => ({ src: fileUrl.portada(f.archivo), alt: f.alt })) : FOTOS_GALERIA} />
+      <GaleriaFotos titulo="Así se vive el voluntariado" destacado="voluntariado" etiqueta="Galería" fotos={portada?.fotos.galeria.length ? portada.fotos.galeria.map((f) => ({ src: fileUrl.portada(f.archivo), alt: f.alt })) : FOTOS_GALERIA} />
 
       {/* Cifras */}
       {(stats.loading || stats.data) && (
@@ -278,6 +286,7 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
           <SectionTitle
             eyebrow="Oportunidades"
             title="Voluntariados abiertos"
+            highlight="abiertos"
             action={
               <div className="flex items-center gap-2">
                 {!!oportunidades.data?.length && (
@@ -340,6 +349,7 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
             <RevealText
               as="h2"
               text="Tu voluntariado en cuatro pasos"
+              highlight="cuatro pasos"
               className="max-w-[14ch] text-[clamp(2.5rem,1.6rem+2.6vw,4rem)] leading-[0.98] tracking-[-0.03em] text-white"
             />
             <p className="mt-4 inline-flex items-center gap-3 text-base font-semibold text-papel/80">
@@ -392,7 +402,7 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
       {/* Áreas: mosaico de causas con ícono */}
       <section className="bg-papel-strong py-24 lg:py-32">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <SectionTitle eyebrow="Explora por área" title="¿Qué causa te mueve?" />
+          <SectionTitle eyebrow="Explora por área" title="¿Qué causa te mueve?" highlight="te mueve" />
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:gap-4">
             {AREAS_VOLUNTARIADO.map((a, i) => {
               const ultima = i === AREAS_VOLUNTARIADO.length - 1;
@@ -416,7 +426,7 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
       {!!resenas.data?.length && (
         <section className="bg-brand py-24 text-white lg:py-32">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <SectionTitle eyebrow="Experiencias" title="Lo que dicen nuestros voluntarios" inverse />
+            <SectionTitle eyebrow="Experiencias" title="Lo que dicen nuestros voluntarios" highlight="voluntarios" inverse />
             <div className="lg:grid lg:grid-cols-12 lg:gap-x-8">
               <figure className="relative lg:col-span-7">
                 <span aria-hidden className="absolute -left-4 -top-8 font-display text-[6rem] leading-none text-ambar lg:-left-8">
@@ -454,6 +464,7 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
           <SectionTitle
             eyebrow="Noticias"
             title="Lo último en voluntariado"
+            highlight="voluntariado"
             action={
               <LinkButton href="/noticias" variant="outline">
                 Ver noticias <ArrowRight className="h-4 w-4" />

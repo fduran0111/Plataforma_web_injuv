@@ -22,7 +22,8 @@ const AVANCE_MS = 10000;
  * El avance automático solo se detiene fuera de pantalla o con el botón de pausa (WCAG 2.2.2).
  * Con movimiento reducido sigue avanzando, pero cambia de foto sin deslizar.
  */
-export default function GaleriaFotos({ titulo, fotos }: { titulo: string; fotos: Foto[] }) {
+export default function GaleriaFotos({ titulo, destacado, etiqueta, fotos }: { titulo: string; destacado?: string; etiqueta?: string; fotos: Foto[] }) {
+  const corte = destacado ? titulo.indexOf(destacado) : -1;
   const n = fotos.length;
   const seccion = useRef<HTMLElement>(null);
   const pista = useRef<HTMLDivElement>(null);
@@ -81,9 +82,25 @@ export default function GaleriaFotos({ titulo, fotos }: { titulo: string; fotos:
       }}
     >
       <div className="mx-auto flex max-w-7xl flex-wrap items-end justify-between gap-6 px-4 sm:px-6 lg:px-8">
-        <h2 className="font-display text-[clamp(1.5rem,0.8rem+2.9vw,4rem)] leading-[1] tracking-[-0.03em] text-fg lg:whitespace-nowrap">
-          {titulo}
-        </h2>
+        <div>
+          <h2 className="font-display text-[clamp(1.5rem,0.8rem+2.9vw,4rem)] leading-[1] tracking-[-0.03em] text-fg lg:whitespace-nowrap">
+            {corte < 0 || !destacado ? (
+              titulo
+            ) : (
+              <>
+                {titulo.slice(0, corte)}
+                <span className="marcador-ambar">{destacado}</span>
+                {titulo.slice(corte + destacado.length)}
+              </>
+            )}
+          </h2>
+          {etiqueta && (
+            <p className="mt-4 inline-flex items-center gap-3 text-base font-semibold text-fg-muted">
+              <span className="h-[3px] w-6 rounded-full bg-ambar" aria-hidden />
+              {etiqueta}
+            </p>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <p className="mr-3 font-display text-xl tabular-nums text-fg" aria-live={auto ? "off" : "polite"}>
             {activa + 1}
