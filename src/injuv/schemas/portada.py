@@ -22,6 +22,9 @@ class PortadaConfigBody(BaseModel):
     aviso_activo: bool = False
     aviso_texto: str | None = Field(default=None, max_length=200)
     aviso_enlace: str | None = Field(default=None, max_length=300)
+    acceso_titulo: str | None = Field(default=None, max_length=80)
+    acceso_subtitulo: str | None = Field(default=None, max_length=120)
+    acceso_cita: str | None = Field(default=None, max_length=120)
 
     @field_validator("*", mode="before")
     @classmethod
@@ -53,5 +56,5 @@ class PortadaFotoPatch(BaseModel):
 
 
 class PortadaOrdenBody(BaseModel):
-    seccion: Literal["inicio", "galeria"]
+    seccion: Literal["inicio", "galeria", "acceso"]
     ids: list[int] = Field(min_length=1)

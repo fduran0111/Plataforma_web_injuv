@@ -3,8 +3,13 @@ import Image from "next/image";
 import Link from "next/link";
 import logo from "../../../public/logo-injuv.png";
 import foto from "../../../public/fotos/voluntariado-2.jpg";
+import { fileUrl } from "@/lib/api";
+import { ACCESO_DEF, cargarPortada } from "@/lib/portada";
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+export default async function AuthLayout({ children }: { children: React.ReactNode }) {
+  const portada = await cargarPortada();
+  const acceso = portada?.fotos.acceso?.[0];
+  const cfg = portada?.config;
   return (
     <div className="grid min-h-screen bg-papel lg:grid-cols-2">
       <div className="flex flex-col px-5 py-7 sm:px-10">
@@ -27,16 +32,21 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       </div>
       <div className="hidden lg:sticky lg:top-0 lg:grid lg:h-svh lg:grid-rows-[1fr_auto]">
         <div className="relative overflow-hidden">
-          <Image src={foto} alt="Jóvenes voluntarios de INJUV" fill className="object-cover" sizes="50vw" priority />
+          {acceso ? (
+            <Image src={fileUrl.portada(acceso.archivo)} alt={acceso.alt} fill unoptimized className="object-cover" priority />
+          ) : (
+            <Image src={foto} alt="Jóvenes voluntarios de INJUV" fill className="object-cover" sizes="50vw" priority />
+          )}
         </div>
         <div className="grid grid-cols-5">
           <div className="col-span-2 flex flex-col justify-end bg-tinta p-9 text-papel">
-            <p className="font-display text-xl leading-tight">Red nacional de voluntariado juvenil</p>
-            <p className="mt-2 text-sm text-papel/70">Instituto Nacional de la Juventud, Gobierno de Chile</p>
+            <p className="font-display text-xl leading-tight">{cfg?.acceso_titulo || ACCESO_DEF.titulo}</p>
+            <p className="mt-2 text-sm text-papel/70">{cfg?.acceso_subtitulo || ACCESO_DEF.subtitulo}</p>
           </div>
           <div className="col-span-3 bg-ambar p-9 text-tinta">
             <blockquote className="max-w-[24ch] font-display text-[clamp(1.5rem,1.9vw,2.1rem)] leading-[1.12] tracking-[-0.015em]">
-              <span className="-ml-[0.4em]">“</span>Tu tiempo puede cambiar una comunidad.”
+              <span className="-ml-[0.4em]">“</span>
+              {cfg?.acceso_cita || ACCESO_DEF.cita}”
             </blockquote>
           </div>
         </div>

@@ -96,6 +96,14 @@
     font-variation-settings: "wght" 650, "opsz" 48;
   }
 
+  /* Palabra clave de un título sobre fondo claro: franja ámbar tipo marcador bajo el texto (el ámbar como color de texto no se lee sobre papel) */
+  .marcador-ambar {
+    background-image: linear-gradient(transparent 58%, var(--color-ambar) 58%, var(--color-ambar) 90%, transparent 90%);
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+    padding-inline: 0.06em;
+  }
+
   /* Título "vivo": sube de peso en hover del grupo sin mover el layout */
   .titulo-vivo {
     font-variation-settings: "wght" 620, "opsz" 24;

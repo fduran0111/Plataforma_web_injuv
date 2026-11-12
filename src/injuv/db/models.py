@@ -214,6 +214,9 @@ class PortadaConfig(Base):
     aviso_activo: Mapped[bool] = mapped_column(Boolean, default=False)
     aviso_texto: Mapped[str | None] = mapped_column(String(200))
     aviso_enlace: Mapped[str | None] = mapped_column(String(300))
+    acceso_titulo: Mapped[str | None] = mapped_column(String(80))
+    acceso_subtitulo: Mapped[str | None] = mapped_column(String(120))
+    acceso_cita: Mapped[str | None] = mapped_column(String(120))
     updated_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
