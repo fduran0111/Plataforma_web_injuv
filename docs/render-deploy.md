@@ -44,3 +44,19 @@ Comprobar tras el despliegue: `GET /health` y `GET /db/health`.
 
 El disco de Render es efímero: lo que se guarde en `storage/` se pierde en cada despliegue.
 Para producción conviene usar un **Persistent Disk** de Render montado en `storage/` o un almacenamiento de objetos (S3, Cloudflare R2…).
+
+## Archivos subidos en Cloudflare R2
+
+El disco de Render es efímero: sin R2, las fotos y documentos subidos se pierden en cada deploy.
+La API usa R2 automáticamente cuando están las variables `R2_*` (ver `src/injuv/services/files.py`).
+
+| Bucket | Acceso | Carpetas |
+|---|---|---|
+| `injuv-publico` | Público (CDN) | `perfiles_usuarios`, `logos_organizaciones`, `imagenes_noticias`, `portada_fotos` |
+| `injuv-privado` | Privado (solo vía API) | certificados, documentos de biblioteca y academia |
+
+1. Cloudflare → **R2** → crear buckets `injuv-publico` e `injuv-privado`.
+2. `injuv-publico` → **Settings → Public access → R2.dev subdomain → Allow**. Copiar la URL `https://pub-….r2.dev` (o conectar un dominio propio).
+3. R2 → **Manage API tokens → Create API token** → permiso *Object Read & Write* para ambos buckets. Guardar *Access Key ID* y *Secret Access Key* (se muestran una sola vez).
+4. En Render → Environment: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=injuv-privado`, `R2_PUBLIC_BUCKET=injuv-publico`, `R2_PUBLIC_URL=https://pub-….r2.dev`.
+5. Migrar lo existente desde `storage/`: `.venv\Scripts\python scripts\migrar_storage_r2.py` (simula) y luego con `--subir`.
