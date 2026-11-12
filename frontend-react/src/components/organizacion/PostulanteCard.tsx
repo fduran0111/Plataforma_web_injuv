@@ -6,7 +6,7 @@ import { Alert, Avatar, Badge, Button, buttonClass, Card, Checkbox, Modal, Selec
 import { apiFetch, downloadFile, fileUrl } from "@/lib/api";
 import { ESTADO_POSTULACION_TONE, ESTADOS_POSTULACION, MOTIVOS_NO_SELECCION } from "@/lib/constants";
 import { formatDate, formatRut } from "@/lib/format";
-import type { Asistencia, FichaPostulante, Postulante } from "@/lib/types";
+import type { Asistencia, FichaPostulante, Postulante, PreguntaOportunidad } from "@/lib/types";
 import { useAuth } from "@/providers/AuthProvider";
 import { useToast } from "@/providers/ToastProvider";
 
@@ -24,11 +24,14 @@ function whatsappNumero(telefono: string | null | undefined): string | null {
 export default function PostulanteCard({
   p,
   oportunidadTitulo,
+  preguntas = [],
   onChanged,
   soloLectura = false,
 }: {
   p: Postulante;
   oportunidadTitulo: string;
+  /** Preguntas de la convocatoria, para mostrar las respuestas del postulante en la ficha. */
+  preguntas?: PreguntaOportunidad[];
   onChanged: (p: Postulante) => void;
   /** Integrante que no es encargado del voluntariado: ve todo, pero no modifica. */
   soloLectura?: boolean;
@@ -221,7 +224,7 @@ export default function PostulanteCard({
                   ["Teléfono", ficha.telefono],
                   ["RUT", ficha.rut ? formatRut(ficha.rut) : ""],
                   ["Región", ficha.region],
-                  ["Ciudad", ficha.ciudad],
+                  ["Provincia", ficha.ciudad],
                   ["Comuna", ficha.comuna],
                   ["Sexo", ficha.sexo],
                   ["Edad", ficha.edad != null ? `${ficha.edad} años` : ""],
@@ -235,6 +238,19 @@ export default function PostulanteCard({
                     </div>
                   ))}
               </dl>
+              {preguntas.length > 0 && (
+                <div className="mt-4 border-t border-border pt-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Respuestas al postular</p>
+                  <dl className="mt-2 space-y-2 text-sm">
+                    {preguntas.map((q) => (
+                      <div key={q.id}>
+                        <dt className="text-fg-muted">{q.texto}</dt>
+                        <dd className="font-medium text-fg">{(p.respuestas ?? {})[q.id] || "Sin respuesta"}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              )}
               <div className="mt-4 border-t border-border pt-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Certificados del postulante</p>
                 <div className="mt-2 flex flex-wrap gap-2">

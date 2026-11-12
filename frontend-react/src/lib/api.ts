@@ -116,6 +116,8 @@ export const fileUrl = {
   noticia: (filename: string) => `${getApiBaseUrl()}/noticias/imagen/${encodeURIComponent(filename)}`,
   documento: (seccion: string, id: number) => `${getApiBaseUrl()}/repositorio/${seccion}/${id}/descargar`,
   portada: (archivo: string) => `${getApiBaseUrl()}/portada/foto/${encodeURIComponent(archivo)}`,
+  oportunidad: (id: number, version?: string | null) =>
+    `${getApiBaseUrl()}/oportunidades/${id}/imagen${version ? `?v=${encodeURIComponent(version)}` : ""}`,
   certificacionOrg: (orgId: number, archivo: string) =>
     `${getApiBaseUrl()}/organizaciones/${orgId}/certificaciones/${encodeURIComponent(archivo)}`,
 };

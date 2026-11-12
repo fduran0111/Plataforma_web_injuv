@@ -6,12 +6,12 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { DeadlineBadge } from "@/components/oportunidades/OportunidadCard";
 import Entrada from "@/components/public/Entrada";
-import { Alert, Avatar, Badge, Button, Card, ConfirmModal, ErrorState, LinkButton, Spinner } from "@/components/ui";
+import { Alert, Avatar, Badge, Button, Card, ErrorState, Field, LinkButton, Modal, Select, Spinner, Textarea } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { apiFetch, fileUrl } from "@/lib/api";
 import { ESTADO_POSTULACION_TONE } from "@/lib/constants";
 import { daysUntil, formatDate } from "@/lib/format";
-import type { Oportunidad } from "@/lib/types";
+import type { Oportunidad, PreguntaOportunidad } from "@/lib/types";
 import { useAuth } from "@/providers/AuthProvider";
 import { useToast } from "@/providers/ToastProvider";
 
@@ -44,13 +44,19 @@ export default function OportunidadDetailPage() {
   const dias = daysUntil(op.fecha_limite_postulacion);
   const abierta = op.estado !== "cerrada" && (dias === null || dias >= 0);
   const responsable = `${op.responsable_nombre} ${op.responsable_apellido}`.trim();
-  const ubicacion = [op.comuna, op.ciudad, op.region].filter(Boolean).join(", ");
+  const ubicacion = ((op.ubicaciones ?? []).length ? op.ubicaciones : [{ comuna: op.comuna, ciudad: op.ciudad, region: op.region }])
+    .map((u) => [u.comuna, u.ciudad, u.region].filter(Boolean).join(", "))
+    .filter(Boolean)
+    .join(" · ");
   const avance = op.meta_postulantes ? Math.min(1, op.num_postulaciones / op.meta_postulantes) : null;
 
-  async function postular() {
+  async function postular(respuestas: Record<string, string>) {
     setSending(true);
     try {
-      await apiFetch(`/oportunidades/${op!.id}/postular`, { method: "POST" });
+      await apiFetch(`/oportunidades/${op!.id}/postular`, {
+        method: "POST",
+        body: Object.keys(respuestas).length ? { respuestas } : undefined,
+      });
       toast("¡Postulación enviada! Puedes seguir su estado en tu perfil.");
       setConfirm(false);
       reload();
@@ -161,6 +167,18 @@ export default function OportunidadDetailPage() {
         </div>
       </section>
 
+      {/* Banner opcional de la convocatoria */}
+      {op.tiene_imagen && (
+        <Entrada className="mx-auto -mt-6 max-w-7xl px-4 sm:px-6 lg:px-8">
+          {/* eslint-disable-next-line @next/next/no-img-element -- imagen de la API/CDN */}
+          <img
+            src={fileUrl.oportunidad(op.id)}
+            alt={`Imagen de ${op.titulo}`}
+            className="h-52 w-full rounded-3xl object-cover shadow-[8px_8px_0_0_var(--color-tinta)] sm:h-72 lg:h-96"
+          />
+        </Entrada>
+      )}
+
       {/* Cuerpo: descripción a la izquierda, acción fija a la derecha */}
       <div className="mx-auto grid max-w-7xl gap-x-8 gap-y-10 px-4 py-14 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-20">
         <Entrada as="article" retraso={0.25} className="lg:col-span-7">
@@ -222,20 +240,94 @@ export default function OportunidadDetailPage() {
         </Entrada>
       </div>
 
-      <ConfirmModal
+      <PostularModal
         open={confirm}
         onClose={() => setConfirm(false)}
-        onConfirm={postular}
+        onSubmit={postular}
         loading={sending}
-        title="Confirmar postulación"
-        confirmLabel="Enviar postulación"
-        message={
-          <>
-            Vas a postular a <strong>{op.titulo}</strong>. La organización revisará tu perfil y te notificará por correo. Asegúrate de tener tus datos de contacto
-            actualizados en tu perfil.
-          </>
-        }
+        titulo={op.titulo}
+        preguntas={op.preguntas}
       />
     </>
+  );
+}
+
+/** Confirmación de postulación; si la convocatoria tiene preguntas, se responden aquí antes de enviar. */
+function PostularModal({
+  open,
+  onClose,
+  onSubmit,
+  loading,
+  titulo,
+  preguntas,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (respuestas: Record<string, string>) => void;
+  loading: boolean;
+  titulo: string;
+  preguntas: PreguntaOportunidad[];
+}) {
+  const [respuestas, setRespuestas] = useState<Record<string, string>>({});
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Confirmar postulación"
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button onClick={() => onSubmit(respuestas)} loading={loading}>
+            Enviar postulación
+          </Button>
+        </>
+      }
+    >
+      <p className="text-sm text-fg-secondary">
+        Vas a postular a <strong>{titulo}</strong>. La organización revisará tu perfil y te notificará por correo.
+      </p>
+      {preguntas.length > 0 && (
+        <div className="mt-5 space-y-4 border-t border-border pt-4">
+          <p className="text-sm font-semibold text-fg">La organización pide responder antes de postular:</p>
+          {preguntas.map((q) => (
+            <Field key={q.id} label={q.texto} required={q.obligatoria}>
+              {(id) =>
+                q.tipo === "si_no" ? (
+                  <Select
+                    id={id}
+                    required={q.obligatoria}
+                    value={respuestas[q.id] ?? ""}
+                    onChange={(e) => setRespuestas((r) => ({ ...r, [q.id]: e.target.value }))}
+                    options={["Sí", "No"]}
+                    placeholder="Selecciona"
+                  />
+                ) : q.tipo === "alternativas" ? (
+                  <Select
+                    id={id}
+                    required={q.obligatoria}
+                    value={respuestas[q.id] ?? ""}
+                    onChange={(e) => setRespuestas((r) => ({ ...r, [q.id]: e.target.value }))}
+                    options={q.opciones}
+                    placeholder="Selecciona"
+                  />
+                ) : (
+                  <Textarea
+                    id={id}
+                    required={q.obligatoria}
+                    maxLength={1000}
+                    value={respuestas[q.id] ?? ""}
+                    onChange={(e) => setRespuestas((r) => ({ ...r, [q.id]: e.target.value }))}
+                    placeholder="Tu respuesta"
+                  />
+                )
+              }
+            </Field>
+          ))}
+        </div>
+      )}
+    </Modal>
   );
 }

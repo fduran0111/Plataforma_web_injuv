@@ -17,7 +17,10 @@ export function DeadlineBadge({ fecha, estado }: { fecha: string | null; estado:
 }
 
 export default function OportunidadCard({ op, postulado }: { op: Oportunidad; postulado?: boolean }) {
-  const ubicacion = [op.comuna, op.region].filter(Boolean).join(", ");
+  const ubicacion =
+    (op.ubicaciones?.length ?? 0) > 1
+      ? `${[op.comuna, op.region].filter(Boolean).join(", ")} +${op.ubicaciones.length - 1} más`
+      : [op.comuna, op.region].filter(Boolean).join(", ");
   return (
     <div
       id={`op-${op.id}`}
