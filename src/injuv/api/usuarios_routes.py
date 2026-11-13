@@ -4,12 +4,12 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Literal
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 
 from injuv.api.auth_routes import session_payload
-from injuv.api.deps import CurrentUser, DbSession
+from injuv.api.deps import CurrentUser, DbSession, require_roles
 from injuv.db.models import Oportunidad, Organizacion, Postulacion, Usuario
 from injuv.schemas.perfiles import EliminarCuentaBody, PerfilUsuarioBody
 from injuv.security.passwords import verify_password
@@ -50,6 +50,26 @@ def eliminar_foto(user: CurrentUser, db: DbSession) -> dict[str, Any]:
     user.foto_perfil = None
     db.commit()
     return session_payload(db, user)
+
+
+@router.get("/buscar")
+def buscar_por_email(
+    email: str,
+    db: DbSession,
+    user: Usuario = Depends(require_roles("organizacion", "admin")),
+) -> dict[str, Any]:
+    """Busca una cuenta por email exacto (organización/admin designan tutores)."""
+    encontrado = db.scalar(
+        select(Usuario).where(func.lower(Usuario.email) == email.strip().lower())
+    )
+    if not encontrado:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No hay una cuenta registrada con ese correo")
+    return {
+        "id": encontrado.id,
+        "nombre": encontrado.nombre,
+        "apellido": encontrado.apellido,
+        "email": encontrado.email,
+    }
 
 
 @router.get("/{user_id}/foto")
