@@ -104,7 +104,7 @@ function SeccionFotos({ titulo, seccion, fotos, reload }: { titulo: string; secc
     <Card className="p-6">
       <h2 className="mb-1 text-xl font-semibold text-fg">{titulo}</h2>
       <p className="mb-4 text-xs text-fg-muted">{cfgSec.ayuda}</p>
-      {!fotos.some((f) => f.activa) && <Alert tone="amber">No hay fotos activas: el sitio está usando sus fotos por defecto.</Alert>}
+      {!fotos.some((f) => f.activa) && <Alert tone="amber">No hay fotos activas: esta sección se mostrará sin imágenes.</Alert>}
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {fotos.map((f, i) => (
           <div key={f.id} className="relative">
@@ -272,7 +272,7 @@ export default function AdminPortadaPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-h1 text-fg">Apariencia del sitio</h1>
-        <p className="text-fg-secondary">Textos y fotos que ven los visitantes. Lo que quede vacío usa el contenido por defecto.</p>
+        <p className="text-fg-secondary">Textos y fotos que ven los visitantes. Los textos vacíos usan el contenido por defecto; las secciones sin fotos se muestran sin imágenes.</p>
         <p className="text-sm text-fg-muted">Los cambios se publican en el sitio al guardar.</p>
       </div>
 
