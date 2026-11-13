@@ -11,7 +11,6 @@ import { useApi } from "@/hooks/useApi";
 import { useOportunidadesPostuladas } from "@/hooks/useMisPostulaciones";
 import { AREAS_VOLUNTARIADO, REGIONES } from "@/lib/constants";
 import type { Oportunidad } from "@/lib/types";
-import foto from "../../../../public/fotos/voluntariado-1.jpg";
 
 function OportunidadesContent() {
   const router = useRouter();
@@ -51,9 +50,7 @@ function OportunidadesContent() {
   return (
     <>
       <Portada
-        tono="foto"
-        foto={foto}
-        alt="Jóvenes voluntarios con chalecos INJUV reunidos en una jornada en terreno"
+        tono="tinta"
         lineas={["Encuentra tu", "voluntariado"]}
         texto="Busca por región y área, revisa los plazos y postula en minutos. Cada hora que entregues queda certificada en tu perfil."
       >

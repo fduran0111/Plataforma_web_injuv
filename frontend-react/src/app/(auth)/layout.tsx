@@ -2,7 +2,6 @@ import { ArrowLeft } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import logo from "../../../public/logo-injuv.png";
-import foto from "../../../public/fotos/voluntariado-2.jpg";
 import { fileUrl } from "@/lib/api";
 import { ACCESO_DEF, cargarPortada } from "@/lib/portada";
 
@@ -31,11 +30,9 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
         <p className="text-center text-xs text-fg-muted">© {new Date().getFullYear()} Instituto Nacional de la Juventud</p>
       </div>
       <div className="hidden lg:sticky lg:top-0 lg:grid lg:h-svh lg:grid-rows-[1fr_auto]">
-        <div className="relative overflow-hidden">
-          {acceso ? (
+        <div className="relative overflow-hidden bg-tinta">
+          {acceso && (
             <Image src={fileUrl.portada(acceso.archivo)} alt={acceso.alt} fill unoptimized className="object-cover" priority />
-          ) : (
-            <Image src={foto} alt="Jóvenes voluntarios de INJUV" fill className="object-cover" sizes="50vw" priority />
           )}
         </div>
         <div className="grid grid-cols-5">

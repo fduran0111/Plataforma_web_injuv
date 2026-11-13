@@ -45,21 +45,6 @@ import { AREAS_VOLUNTARIADO, REGIONES } from "@/lib/constants";
 import { cn } from "@/lib/format";
 import type { Noticia, Oportunidad, PortadaPublica, ResenaPublica } from "@/lib/types";
 import { useAuth } from "@/providers/AuthProvider";
-import hero from "../../../public/fotos/voluntariado-1.jpg";
-import hero2 from "../../../public/fotos/voluntariado-2.jpg";
-import hero5 from "../../../public/fotos/voluntariado-5.jpg";
-import foto3 from "../../../public/fotos/voluntariado-3.jpg";
-import foto4 from "../../../public/fotos/voluntariado-4.jpg";
-import foto6 from "../../../public/fotos/voluntariado-6.jpg";
-import fotoHogar1 from "../../../public/Hogar de Cristo 1.jpg";
-import fotoHogar2 from "../../../public/Hogar de Cristo 2.jpg";
-import fotoHogar3 from "../../../public/Hogar de Cristo 3.jpg";
-import fotoFusupo1 from "../../../public/FUSUPO 1.jpg";
-import fotoFusupo2 from "../../../public/FUSUPO 2.jpg";
-import fotoCumbre from "../../../public/Cumbre del Voluntariado.jpg";
-import fotoVap1 from "../../../public/VAP 2026.jpg";
-import fotoVap2 from "../../../public/VAP 2026_2.jpg";
-import fotoIncendio1 from "../../../public/incendios-chillan-1.jpg";
 
 type Stats = { voluntarios: number; organizaciones: number; oportunidades: number; horas: number };
 
@@ -68,17 +53,6 @@ const PASOS = [
   { icon: Search, title: "Encuentra tu causa", text: "Filtra por región y área: educación, medio ambiente, salud y más." },
   { icon: Send, title: "Postula", text: "Envía tu postulación en un clic y sigue su estado desde tu perfil." },
   { icon: Award, title: "Certifica tu experiencia", text: "Registra tus horas y recibe el certificado de la organización." },
-];
-
-const FOTOS_GALERIA = [
-  { src: foto6, alt: "Dos jóvenes sostienen un letrero de Juventudes ¡presentes! junto a un bus" },
-  { src: fotoHogar2, alt: "Voluntarios en una jornada del Hogar de Cristo" },
-  { src: fotoFusupo2, alt: "Participantes en una actividad del programa FUSUPO" },
-  { src: hero, alt: "Jóvenes voluntarios con chalecos INJUV reunidos en una jornada en terreno" },
-  { src: foto3, alt: "Voluntarias y voluntarios con chalecos INJUV muestran sus diplomas del Día de la Solidaridad" },
-  { src: fotoVap2, alt: "Voluntarios del programa VAP durante una jornada" },
-  { src: fotoIncendio1, alt: "Voluntarios de emergencia durante los incendios en Chillán" },
-  { src: hero5, alt: "Jóvenes de distintos países posan con banderas y un letrero de INJUV" },
 ];
 
 const ICONO_AREA: Record<string, typeof UserPlus> = {
@@ -170,9 +144,7 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
   }
 
   const cfg = portada?.config;
-  const fotosInicio = portada?.fotos.inicio.length
-    ? portada.fotos.inicio.slice(0, 7).map((f) => ({ src: fileUrl.portada(f.archivo), alt: f.alt }))
-    : [hero, fotoHogar1, fotoFusupo1, fotoCumbre, fotoVap1, fotoHogar3, hero2].map((src) => ({ src, alt: "" }));
+  const fotosInicio = (portada?.fotos.inicio ?? []).slice(0, 7).map((f) => ({ src: fileUrl.portada(f.archivo), alt: f.alt }));
   const linea2 = (cfg?.titulo_linea2 ?? "que").trim();
   const aviso = cfg?.aviso_activo && cfg.aviso_texto ? { texto: cfg.aviso_texto, enlace: cfg.aviso_enlace } : null;
 
@@ -206,7 +178,7 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
                   alt={foto.alt}
                   fill
                   priority={i === 0}
-                  unoptimized={typeof foto.src === "string"}
+                  unoptimized
                   sizes="100vw"
                   className="kb object-cover"
                 />
@@ -249,7 +221,9 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
       </section>
 
       {/* Carrusel de fotos del programa */}
-      <GaleriaFotos titulo="Así se vive el voluntariado" destacado="voluntariado" etiqueta="Galería" fotos={portada?.fotos.galeria.length ? portada.fotos.galeria.map((f) => ({ src: fileUrl.portada(f.archivo), alt: f.alt })) : FOTOS_GALERIA} />
+      {!!portada?.fotos.galeria.length && (
+        <GaleriaFotos titulo="Así se vive el voluntariado" destacado="voluntariado" etiqueta="Galería" fotos={portada.fotos.galeria.map((f) => ({ src: fileUrl.portada(f.archivo), alt: f.alt }))} />
+      )}
 
       {/* Cifras */}
       {(stats.loading || stats.data) && (
@@ -363,20 +337,6 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
                 </LinkButton>
               </div>
             )}
-            <div className="mt-12 grid grid-cols-2 gap-3">
-              <Image
-                src={foto3}
-                alt="Voluntarios trabajando en terreno"
-                sizes="(min-width: 1024px) 20vw, 50vw"
-                className="aspect-[4/5] w-full rounded-2xl object-cover"
-              />
-              <Image
-                src={foto4}
-                alt="Jóvenes en una actividad comunitaria"
-                sizes="(min-width: 1024px) 20vw, 50vw"
-                className="mt-10 aspect-[4/5] w-full rounded-2xl object-cover"
-              />
-            </div>
           </div>
           <Stagger className="lg:col-span-6 lg:col-start-7 lg:self-center" stagger={0.08}>
             <ol className="grid gap-x-8 sm:grid-cols-2">

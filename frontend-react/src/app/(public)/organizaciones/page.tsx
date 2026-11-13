@@ -10,7 +10,6 @@ import { useApi } from "@/hooks/useApi";
 import { fileUrl } from "@/lib/api";
 import { REGIONES } from "@/lib/constants";
 import type { Organizacion } from "@/lib/types";
-import foto from "../../../../public/fotos/voluntariado-5.jpg";
 
 function FilaOrganizacion({ o }: { o: Organizacion }) {
   const n = o.num_oportunidades ?? 0;
@@ -49,9 +48,7 @@ export default function OrganizacionesPage() {
   return (
     <>
       <Portada
-        tono="foto"
-        foto={foto}
-        alt="Jóvenes de distintos países posan con banderas y un letrero de INJUV"
+        tono="tinta"
         lineas={["Las organizaciones", "detrás de cada causa"]}
         texto="Fundaciones, corporaciones y colectivos de todo Chile que abren sus puertas al voluntariado joven. Conócelas y revisa qué están convocando."
       >
