@@ -9,7 +9,7 @@ from sqlalchemy import Text, and_, cast, func, or_, select, update
 
 from injuv.api.deps import CurrentUser, DbSession, MemberOrganization, OptionalUser
 from injuv.db.models import Oportunidad, Organizacion, Postulacion, Usuario
-from injuv.schemas.oportunidades import CorreoMasivoBody, EstadoOportunidadBody, FechasBody, OportunidadBody, PostularBody
+from injuv.schemas.oportunidades import CorreoMasivoBody, EncargadosBody, EstadoOportunidadBody, FechasBody, OportunidadBody, PostularBody
 from injuv.security.rbac import is_admin, normalize_role
 from injuv.services import files, mailer, serializers
 from injuv.services.catalogo import ESTADO_DECLINADA, ESTADOS_OPORTUNIDAD_ABIERTOS
@@ -158,6 +158,20 @@ def listar(
 @router.get("/mias")
 def listar_de_mi_organizacion(db: DbSession, org: MemberOrganization) -> list[dict[str, Any]]:
     return listar(db, estado="todas", organizacion_id=org.id, limit=500)
+
+
+@router.get("/tutorias")
+def listar_mis_tutorias(db: DbSession, user: CurrentUser) -> list[dict[str, Any]]:
+    """Voluntariados donde la cuenta es encargada/tutora (integrante o externa), para la web y la app."""
+    counts = _count_subquery()
+    stmt = (
+        select(Oportunidad, Organizacion, func.coalesce(counts.c.n, 0))
+        .join(Organizacion, Organizacion.id == Oportunidad.organizacion_id)
+        .outerjoin(counts, counts.c.oportunidad_id == Oportunidad.id)
+        .where(Oportunidad.encargados_ids.contains([user.id]))
+        .order_by(Oportunidad.created_at.desc())
+    )
+    return [serializers.oportunidad(op, org, n) for op, org, n in db.execute(stmt).all()]
 
 
 @router.get("/{oportunidad_id}")
@@ -341,11 +355,7 @@ def _validar_respuestas(op: Oportunidad, respuestas: dict[str, str]) -> dict[str
     return limpias
 
 
-@router.get("/{oportunidad_id}/encargados")
-def listar_encargados(oportunidad_id: int, db: DbSession, user: CurrentUser) -> list[dict[str, Any]]:
-    """Encargados con nombre y correo; `miembro` indica si pertenecen a la organización o son externos."""
-    op = get_oportunidad_or_404(db, oportunidad_id)
-    org = ensure_can_view(db, op, user)
+def _encargados_detalle(db: DbSession, op: Oportunidad, org: Organizacion | None) -> list[dict[str, Any]]:
     ids = [x for x in (op.encargados_ids or []) if isinstance(x, int)]
     por_id = {u.id: u for u in db.scalars(select(Usuario).where(Usuario.id.in_(ids)))} if ids else {}
     return [
@@ -358,6 +368,25 @@ def listar_encargados(oportunidad_id: int, db: DbSession, user: CurrentUser) -> 
         }
         for u in (por_id[i] for i in ids if i in por_id)
     ]
+
+
+@router.get("/{oportunidad_id}/encargados")
+def listar_encargados(oportunidad_id: int, db: DbSession, user: CurrentUser) -> list[dict[str, Any]]:
+    """Encargados con nombre y correo; `miembro` indica si pertenecen a la organización o son externos."""
+    op = get_oportunidad_or_404(db, oportunidad_id)
+    return _encargados_detalle(db, op, ensure_can_view(db, op, user))
+
+
+@router.put("/{oportunidad_id}/encargados")
+def actualizar_encargados(
+    oportunidad_id: int, body: EncargadosBody, db: DbSession, user: CurrentUser
+) -> list[dict[str, Any]]:
+    """Solo cambia los encargados (lo usa la app móvil; la web los envía junto al formulario completo)."""
+    op = get_oportunidad_or_404(db, oportunidad_id)
+    org = ensure_can_manage(db, op, user)
+    op.encargados_ids = _encargados_validos(db, body.encargados_ids)
+    db.commit()
+    return _encargados_detalle(db, op, org)
 
 
 @router.post("/{oportunidad_id}/postular", status_code=status.HTTP_201_CREATED)
