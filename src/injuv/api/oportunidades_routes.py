@@ -12,7 +12,7 @@ from injuv.db.models import Oportunidad, Organizacion, Postulacion, Usuario
 from injuv.schemas.oportunidades import CorreoMasivoBody, EncargadosBody, EstadoOportunidadBody, FechasBody, OportunidadBody, PostularBody
 from injuv.security.rbac import is_admin, normalize_role
 from injuv.services import files, mailer, serializers
-from injuv.services.catalogo import ESTADO_DECLINADA, ESTADOS_OPORTUNIDAD_ABIERTOS
+from injuv.services.catalogo import ESTADO_DECLINADA, ESTADOS_OPORTUNIDAD_ABIERTOS, rechazo_participacion
 
 router = APIRouter(prefix="/oportunidades", tags=["Oportunidades"])
 
@@ -185,7 +185,7 @@ def obtener(oportunidad_id: int, db: DbSession, user: OptionalUser) -> dict[str,
             select(Postulacion).where(Postulacion.oportunidad_id == op.id, Postulacion.usuario_id == user.id)
         )
         if p:
-            data["mi_postulacion"] = {"id": p.id, "estado": p.estado}
+            data["mi_postulacion"] = {"id": p.id, "estado": p.estado, "estado_confirmacion": p.estado_confirmacion}
     return data
 
 
@@ -396,7 +396,10 @@ def postular(
     op = get_oportunidad_or_404(db, oportunidad_id)
     if normalize_role(user.rol) != "user":
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo las cuentas de voluntario pueden postular")
-    if db.scalar(select(Postulacion.id).where(Postulacion.oportunidad_id == op.id, Postulacion.usuario_id == user.id)):
+    existente = db.scalar(
+        select(Postulacion).where(Postulacion.oportunidad_id == op.id, Postulacion.usuario_id == user.id)
+    )
+    if existente and not rechazo_participacion(existente):
         raise HTTPException(status.HTTP_409_CONFLICT, "Ya postulaste a esta oportunidad")
     total = db.scalar(select(func.count(Postulacion.id)).where(Postulacion.oportunidad_id == op.id)) or 0
     if op.estado in ESTADOS_OPORTUNIDAD_ABIERTOS and (motivo := _motivo_cierre(op, total)):
@@ -406,24 +409,32 @@ def postular(
     if op.estado not in ESTADOS_OPORTUNIDAD_ABIERTOS:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "La oportunidad no está recibiendo postulaciones")
     now = datetime.now()
-    p = Postulacion(
-        usuario_id=user.id,
-        oportunidad_id=op.id,
-        estado="Pendiente de revisión",
-        estado_confirmacion="Pendiente",
-        asistencia_capacitacion="No aplica",
-        asistencia_actividad="No aplica",
-        tiene_certificado=False,
-        resena_org_publica=False,
-        horas_voluntariado=0,
-        respuestas=_validar_respuestas(op, (body.respuestas if body else {}) or {}),
-        created_at=now,
-        updated_at=now,
-    )
-    db.add(p)
-    # Esta postulación completa la meta: la convocatoria se cierra en el mismo momento
-    if op.meta_postulantes and total + 1 >= op.meta_postulantes:
-        op.estado = "cerrada"
+    if existente:
+        # Re-postulación tras retirarse: se reactiva la misma postulación en revisión.
+        existente.estado = "Pendiente de revisión"
+        existente.estado_confirmacion = "Pendiente"
+        existente.respuestas = _validar_respuestas(op, (body.respuestas if body else {}) or {})
+        existente.updated_at = now
+        p = existente
+    else:
+        p = Postulacion(
+            usuario_id=user.id,
+            oportunidad_id=op.id,
+            estado="Pendiente de revisión",
+            estado_confirmacion="Pendiente",
+            asistencia_capacitacion="No aplica",
+            asistencia_actividad="No aplica",
+            tiene_certificado=False,
+            resena_org_publica=False,
+            horas_voluntariado=0,
+            respuestas=_validar_respuestas(op, (body.respuestas if body else {}) or {}),
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(p)
+        # Esta postulación completa la meta: la convocatoria se cierra en el mismo momento
+        if op.meta_postulantes and total + 1 >= op.meta_postulantes:
+            op.estado = "cerrada"
     db.commit()
     org = db.get(Organizacion, op.organizacion_id)
     background.add_task(
