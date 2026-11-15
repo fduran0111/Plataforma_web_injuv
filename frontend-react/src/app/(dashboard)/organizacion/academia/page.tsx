@@ -7,7 +7,9 @@ import { useApi } from "@/hooks/useApi";
 import { apiFetch, downloadFile } from "@/lib/api";
 import { CATEGORIAS_ACADEMIA, ESTADO_DOC_TONE } from "@/lib/constants";
 import { formatBytes, formatDate } from "@/lib/format";
+import { esAdminOrganizacion } from "@/lib/permisos";
 import type { Documento } from "@/lib/types";
+import { useAuth } from "@/providers/AuthProvider";
 import { useToast } from "@/providers/ToastProvider";
 
 type DocForm = { id: number | null; nombre_archivo: string; descripcion: string; categoria: string; fecha_creacion: string };
@@ -16,6 +18,8 @@ const EMPTY: DocForm = { id: null, nombre_archivo: "", descripcion: "", categori
 
 export default function AcademiaOrgPage() {
   const toast = useToast();
+  const { user } = useAuth();
+  const esAdminOrg = esAdminOrganizacion(user);
   const { data, loading, error, reload } = useApi<Documento[]>("/organizaciones/mia/academia");
   const [form, setForm] = useState<(DocForm & { open: boolean }) | null>(null);
   const [deleting, setDeleting] = useState<Documento | null>(null);
@@ -71,9 +75,11 @@ export default function AcademiaOrgPage() {
         title="Academia de voluntariado"
         description="Comparte guías, plantillas y videos con la comunidad. Cada recurso nuevo pasa por revisión de un administrador antes de publicarse."
         actions={
-          <Button onClick={() => setForm({ ...EMPTY, open: true })}>
-            <Plus className="h-4 w-4" /> Nuevo recurso
-          </Button>
+          esAdminOrg && (
+            <Button onClick={() => setForm({ ...EMPTY, open: true })}>
+              <Plus className="h-4 w-4" /> Nuevo recurso
+            </Button>
+          )
         }
       />
       {error && <ErrorState message={error} onRetry={reload} />}
@@ -84,9 +90,11 @@ export default function AcademiaOrgPage() {
           title="Aún no compartes recursos"
           description="Sube tu primera guía o plantilla para ayudar a otros voluntarios y organizaciones."
           action={
+            esAdminOrg && (
             <Button onClick={() => setForm({ ...EMPTY, open: true })}>
               <Plus className="h-4 w-4" /> Nuevo recurso
             </Button>
+            )
           }
         />
       )}
@@ -107,12 +115,16 @@ export default function AcademiaOrgPage() {
               <Button size="sm" variant="secondary" onClick={() => downloadFile(`/repositorio/academia/${d.id}/descargar`, d.nombre_archivo)}>
                 <Download className="h-4 w-4" /> Descargar
               </Button>
+              {esAdminOrg && (
+              <>
               <Button size="sm" variant="ghost" onClick={() => setForm({ id: d.id, nombre_archivo: d.nombre_archivo, descripcion: d.descripcion, categoria: d.categoria ?? "guias_manuales", fecha_creacion: "", open: true })}>
                 <Pencil className="h-4 w-4" />
               </Button>
               <Button size="sm" variant="ghost" className="text-red-600" onClick={() => setDeleting(d)}>
                 <Trash2 className="h-4 w-4" />
               </Button>
+              </>
+              )}
             </div>
           </Card>
         ))}

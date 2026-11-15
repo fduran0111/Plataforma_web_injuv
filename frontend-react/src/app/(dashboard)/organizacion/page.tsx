@@ -4,11 +4,15 @@ import { ExternalLink, HeartHandshake, Mail, MessageSquareQuote, Star, Users } f
 import { Card, LinkButton, PageHeader, Spinner, StatCard } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { formatNumber } from "@/lib/format";
+import { esAdminOrganizacion } from "@/lib/permisos";
 import type { Oportunidad, Organizacion } from "@/lib/types";
+import { useAuth } from "@/providers/AuthProvider";
 
 export default function OrganizacionResumenPage() {
   const org = useApi<Organizacion>("/organizaciones/mia");
   const ops = useApi<Oportunidad[]>("/oportunidades/mias");
+  const { user } = useAuth();
+  const esAdminOrg = esAdminOrganizacion(user);
 
   if (org.loading && !org.data) return <Spinner label="Cargando tu organización…" />;
   const o = org.data;
@@ -27,9 +31,11 @@ export default function OrganizacionResumenPage() {
                 <ExternalLink className="h-4 w-4" /> Ver perfil público
               </LinkButton>
             )}
-            <LinkButton href="/organizacion/oportunidades?nueva=1" size="sm">
-              <HeartHandshake className="h-4 w-4" /> Publicar voluntariado
-            </LinkButton>
+            {esAdminOrg && (
+              <LinkButton href="/organizacion/oportunidades?nueva=1" size="sm">
+                <HeartHandshake className="h-4 w-4" /> Publicar voluntariado
+              </LinkButton>
+            )}
           </>
         }
       />

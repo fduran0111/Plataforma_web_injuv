@@ -29,7 +29,7 @@ export default function OrganizacionLayout({ children }: { children: React.React
               <EmptyState
                 icon={ShieldAlert}
                 title="Sección solo para el administrador de la organización"
-                description="Como miembro puedes gestionar los voluntariados y la academia."
+                description="Como tutor puedes ver tus voluntariados, pasar asistencia y escribir a tus voluntarios."
                 action={<LinkButton href="/organizacion/oportunidades">Ir a voluntariados</LinkButton>}
               />
             ) : (

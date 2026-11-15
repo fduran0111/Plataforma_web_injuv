@@ -26,16 +26,19 @@ export default function PostulanteCard({
   oportunidadTitulo,
   preguntas = [],
   onChanged,
-  soloLectura = false,
+  modo = "gestion",
 }: {
   p: Postulante;
   oportunidadTitulo: string;
   /** Preguntas de la convocatoria, para mostrar las respuestas del postulante en la ficha. */
   preguntas?: PreguntaOportunidad[];
   onChanged: (p: Postulante) => void;
-  /** Integrante que no es encargado del voluntariado: ve todo, pero no modifica. */
-  soloLectura?: boolean;
+  /** "gestion": administrador de la organización (todo). "tutor": asistencia, horas y evaluación.
+   * "lectura": ve todo, pero no modifica. */
+  modo?: "gestion" | "tutor" | "lectura";
 }) {
+  const soloLectura = modo === "lectura";
+  const gestiona = modo === "gestion";
   const asuntoCorreo = `Actualización estado de postulación: ${oportunidadTitulo}`;
   const mailto = `mailto:${p.usuario_email}?subject=${encodeURIComponent(asuntoCorreo)}`;
   const waNumero = whatsappNumero(p.usuario_telefono);
@@ -295,7 +298,7 @@ export default function PostulanteCard({
         <Select
           aria-label="Estado"
           value={p.estado}
-          disabled={busy || declinada}
+          disabled={busy || declinada || !gestiona}
           onChange={(e) => {
             const value = e.target.value;
             if (value === "No seleccionado") setEstadoModal(value);
@@ -346,10 +349,12 @@ export default function PostulanteCard({
               <Download className="h-4 w-4" /> Ver certificado
             </Button>
           )}
-          <span className="text-xs text-fg-muted">Solo lectura: no eres encargado de este voluntariado.</span>
+          <span className="text-xs text-fg-muted">Solo lectura: no eres tutor de este voluntariado.</span>
         </div>
       ) : (
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+        {gestiona && (
+        <>
         <input ref={certRef} type="file" accept="application/pdf" className="hidden" onChange={(e) => subirCertificado(e.target.files?.[0])} />
         {p.tiene_certificado ? (
           <>
@@ -392,17 +397,24 @@ export default function PostulanteCard({
             </Button>
           </>
         )}
+        </>
+        )}
+        {!gestiona && p.tiene_certificado && (
+          <Button size="sm" variant="secondary" onClick={() => downloadFile(`/postulaciones/${p.id}/certificado`, "certificado_voluntariado.pdf")}>
+            <Download className="h-4 w-4" /> Ver certificado
+          </Button>
+        )}
         <Button size="sm" variant="ghost" disabled={!!bloqueoCierre} title={bloqueoCierre ?? undefined} onClick={() => setResenaOpen(true)}>
           <Star className="h-4 w-4" /> {p.resena_org || p.calificacion_org != null ? "Editar evaluación" : "Evaluar voluntario"}
         </Button>
-        {p.resena_usuario && !esMiembro && (
+        {p.resena_usuario && gestiona && !esMiembro && (
           <Button size="sm" variant="ghost" loading={busy} onClick={toggleVisibilidad}>
             {p.resena_usuario_publica ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             {p.resena_usuario_publica ? "Ocultar reseña" : "Publicar reseña"}
           </Button>
         )}
-        {bloqueoCierre && !p.tiene_certificado && (
-          <span className="text-xs text-fg-muted">Certificado y evaluación: {bloqueoCierre.toLowerCase()}.</span>
+        {bloqueoCierre && (gestiona ? !p.tiene_certificado : true) && (
+          <span className="text-xs text-fg-muted">{gestiona ? "Certificado y evaluación" : "Evaluación"}: {bloqueoCierre.toLowerCase()}.</span>
         )}
       </div>
       )}

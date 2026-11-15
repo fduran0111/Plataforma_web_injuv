@@ -11,6 +11,7 @@ from sqlalchemy import text
 from injuv.api import (
     admin_routes,
     auth_routes,
+    foros_routes,
     noticias_routes,
     oportunidades_routes,
     organizaciones_routes,
@@ -72,6 +73,7 @@ for module in (
     admin_routes,
     portada_routes,
     public_routes,
+    foros_routes,
 ):
     app.include_router(module.router)
 

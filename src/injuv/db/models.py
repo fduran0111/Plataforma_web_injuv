@@ -239,3 +239,16 @@ class PortadaFoto(Base):
     orden: Mapped[int] = mapped_column(Integer, default=0)
     activa: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+
+class ForoMensaje(Base):
+    """Mensajes de los foros de cada voluntariado (migrations/004_foros_voluntariado.sql)."""
+
+    __tablename__ = "foro_mensajes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    oportunidad_id: Mapped[int] = mapped_column(ForeignKey("oportunidades.id", ondelete="CASCADE"))
+    canal: Mapped[str] = mapped_column(String(10), default="chat")
+    autor_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id", ondelete="SET NULL"))
+    texto: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)

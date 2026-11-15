@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import Text, and_, cast, func, or_, select, update
 
-from injuv.api.deps import CurrentUser, DbSession, MemberOrganization, OptionalUser
+from injuv.api.deps import CurrentUser, DbSession, MemberOrganization, OptionalUser, OwnOrganization
 from injuv.db.models import Oportunidad, Organizacion, Postulacion, Usuario
 from injuv.schemas.oportunidades import CorreoMasivoBody, EncargadosBody, EstadoOportunidadBody, FechasBody, OportunidadBody, PostularBody
 from injuv.security.rbac import is_admin, normalize_role
@@ -63,7 +63,8 @@ def get_oportunidad_or_404(db: DbSession, oportunidad_id: int) -> Oportunidad:
 
 
 def ensure_can_manage(db: DbSession, op: Oportunidad, user: Usuario, solo_admin_org: bool = False) -> Organizacion | None:
-    """Admin INJUV o integrante de la organización dueña (miembros incluidos salvo `solo_admin_org`)."""
+    """Admin INJUV, administrador de la organización ("super tutor") o, salvo `solo_admin_org`, un integrante
+    encargado del voluntariado ("tutor": asistencia, horas, reseñas y correo a sus voluntarios)."""
     org = db.get(Organizacion, op.organizacion_id)
     if is_admin(user.rol) or (org and org.id_usuario_org == user.id):
         return org
@@ -71,25 +72,32 @@ def ensure_can_manage(db: DbSession, op: Oportunidad, user: Usuario, solo_admin_
         return org
     raise HTTPException(
         status.HTTP_403_FORBIDDEN,
-        "Solo los encargados de este voluntariado o el administrador de la organización pueden modificarlo",
+        "Solo el administrador de la organización puede hacer esto"
+        if solo_admin_org
+        else "Solo los tutores de este voluntariado o el administrador de la organización pueden hacer esto",
     )
 
 
 def ensure_can_view(db: DbSession, op: Oportunidad, user: Usuario) -> Organizacion | None:
-    """Lectura del voluntariado y sus postulantes: cualquier integrante de la organización (o admin INJUV)."""
+    """Lectura del voluntariado y sus postulantes: admin INJUV, administrador de la organización o un
+    integrante encargado (tutor) de ese voluntariado."""
     org = db.get(Organizacion, op.organizacion_id)
-    if is_admin(user.rol) or (org and (org.id_usuario_org == user.id or user.organizacion_afiliada == org.id)):
+    if is_admin(user.rol) or (org and org.id_usuario_org == user.id):
+        return org
+    if org and user.organizacion_afiliada == org.id and user.id in (op.encargados_ids or []):
         return org
     raise HTTPException(status.HTTP_403_FORBIDDEN, "No tienes permisos sobre esta oportunidad")
 
 
-def _encargados_validos(db: DbSession, ids: list[int]) -> list[int]:
-    """Cualquier cuenta registrada, sin repetir. Un encargado externo (no integrante) no gana permisos
-    de organización: `ensure_can_manage` exige además pertenecer a la organización."""
+def _encargados_validos(db: DbSession, org: Organizacion | None, ids: list[int]) -> list[int]:
+    """Solo integrantes de la organización (administrador o miembros), sin repetir."""
     unicos = list(dict.fromkeys(ids))
-    existentes = set(db.scalars(select(Usuario.id).where(Usuario.id.in_(unicos)))) if unicos else set()
-    if len(existentes) != len(unicos):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Algún encargado ya no tiene una cuenta registrada")
+    if org is None:
+        return unicos
+    validos = {org.id_usuario_org} if org.id_usuario_org else set()
+    validos |= set(db.scalars(select(Usuario.id).where(Usuario.organizacion_afiliada == org.id)))
+    if any(i not in validos for i in unicos):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Los encargados deben ser integrantes de la organización")
     return unicos
 
 
@@ -156,19 +164,26 @@ def listar(
 
 
 @router.get("/mias")
-def listar_de_mi_organizacion(db: DbSession, org: MemberOrganization) -> list[dict[str, Any]]:
-    return listar(db, estado="todas", organizacion_id=org.id, limit=500)
+def listar_de_mi_organizacion(db: DbSession, org: MemberOrganization, user: CurrentUser) -> list[dict[str, Any]]:
+    """El administrador ve todos los voluntariados de su organización; un tutor, solo los que tiene a cargo."""
+    lista = listar(db, estado="todas", organizacion_id=org.id, limit=500)
+    if org.id_usuario_org == user.id:
+        return lista
+    return [op for op in lista if user.id in (op.get("encargados_ids") or [])]
 
 
 @router.get("/tutorias")
 def listar_mis_tutorias(db: DbSession, user: CurrentUser) -> list[dict[str, Any]]:
-    """Voluntariados donde la cuenta es encargada/tutora (integrante o externa), para la web y la app."""
+    """Voluntariados de su organización donde la cuenta es tutora (encargada), para la web y la app."""
     counts = _count_subquery()
     stmt = (
         select(Oportunidad, Organizacion, func.coalesce(counts.c.n, 0))
         .join(Organizacion, Organizacion.id == Oportunidad.organizacion_id)
         .outerjoin(counts, counts.c.oportunidad_id == Oportunidad.id)
-        .where(Oportunidad.encargados_ids.contains([user.id]))
+        .where(
+            Oportunidad.encargados_ids.contains([user.id]),
+            or_(Organizacion.id_usuario_org == user.id, Oportunidad.organizacion_id == user.organizacion_afiliada),
+        )
         .order_by(Oportunidad.created_at.desc())
     )
     return [serializers.oportunidad(op, org, n) for op, org, n in db.execute(stmt).all()]
@@ -204,14 +219,11 @@ def _no_en_el_pasado(valores: dict[str, date | None]) -> None:
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-def crear(body: OportunidadBody, db: DbSession, org: MemberOrganization, user: CurrentUser) -> dict[str, Any]:
+def crear(body: OportunidadBody, db: DbSession, org: OwnOrganization) -> dict[str, Any]:
     _no_en_el_pasado({c: getattr(body, c) for c in _CAMPOS_FECHA})
     op = Oportunidad(organizacion_id=org.id, estado="activa", created_at=datetime.now())
     _apply_body(op, body)
-    encargados = _encargados_validos(db, body.encargados_ids)
-    if user.id != org.id_usuario_org and user.id not in encargados:
-        encargados.append(user.id)  # un miembro que publica queda a cargo de su voluntariado
-    op.encargados_ids = encargados
+    op.encargados_ids = _encargados_validos(db, org, body.encargados_ids)
     db.add(op)
     db.commit()
     db.refresh(op)
@@ -223,10 +235,10 @@ def actualizar(
     oportunidad_id: int, body: OportunidadBody, db: DbSession, user: CurrentUser, background: BackgroundTasks
 ) -> dict[str, Any]:
     op = get_oportunidad_or_404(db, oportunidad_id)
-    ensure_can_manage(db, op, user)
+    org = ensure_can_manage(db, op, user, solo_admin_org=True)
     cambios = _cambios_de_fecha(op, {c: getattr(body, c) for c in _CAMPOS_FECHA})
     _no_en_el_pasado({c: nuevo for c, (_, nuevo) in cambios.items()})
-    encargados = _encargados_validos(db, body.encargados_ids)
+    encargados = _encargados_validos(db, org, body.encargados_ids)
     _apply_body(op, body)
     op.encargados_ids = encargados
     db.commit()
@@ -267,7 +279,7 @@ def cambiar_fechas(
 ) -> dict[str, Any]:
     """Modificar o aplazar el cierre de postulaciones y el período del voluntariado."""
     op = get_oportunidad_or_404(db, oportunidad_id)
-    ensure_can_manage(db, op, user)
+    ensure_can_manage(db, op, user, solo_admin_org=True)
     cambios = _cambios_de_fecha(op, {c: getattr(body, c) for c in _CAMPOS_FECHA})
     if not cambios:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "No cambiaste ninguna fecha")
@@ -288,7 +300,7 @@ def cambiar_estado(
     background: BackgroundTasks,
 ) -> dict[str, Any]:
     op = get_oportunidad_or_404(db, oportunidad_id)
-    ensure_can_manage(db, op, user)
+    ensure_can_manage(db, op, user, solo_admin_org=True)
     if body.estado != "cerrada":
         total = db.scalar(select(func.count(Postulacion.id)).where(Postulacion.oportunidad_id == op.id)) or 0
         if motivo := _motivo_cierre(op, total):
@@ -312,7 +324,7 @@ def cambiar_estado(
 @router.delete("/{oportunidad_id}", status_code=status.HTTP_204_NO_CONTENT)
 def eliminar(oportunidad_id: int, db: DbSession, user: CurrentUser) -> None:
     op = get_oportunidad_or_404(db, oportunidad_id)
-    ensure_can_manage(db, op, user)
+    ensure_can_manage(db, op, user, solo_admin_org=True)
     for p in db.scalars(select(Postulacion).where(Postulacion.oportunidad_id == op.id)):
         files.delete("certificados_voluntarios", p.ruta_certificado_pdf)
         db.delete(p)
@@ -381,10 +393,11 @@ def listar_encargados(oportunidad_id: int, db: DbSession, user: CurrentUser) -> 
 def actualizar_encargados(
     oportunidad_id: int, body: EncargadosBody, db: DbSession, user: CurrentUser
 ) -> list[dict[str, Any]]:
-    """Solo cambia los encargados (lo usa la app móvil; la web los envía junto al formulario completo)."""
+    """Solo cambia los encargados (lo usa la app móvil; la web los envía junto al formulario completo).
+    Solo el administrador de la organización asigna tutores, y deben ser integrantes."""
     op = get_oportunidad_or_404(db, oportunidad_id)
-    org = ensure_can_manage(db, op, user)
-    op.encargados_ids = _encargados_validos(db, body.encargados_ids)
+    org = ensure_can_manage(db, op, user, solo_admin_org=True)
+    op.encargados_ids = _encargados_validos(db, org, body.encargados_ids)
     db.commit()
     return _encargados_detalle(db, op, org)
 
@@ -456,6 +469,9 @@ def correo_masivo(oportunidad_id: int, body: CorreoMasivoBody, db: DbSession, us
     )
     if body.filtro_estado != "todos":
         stmt = stmt.where(Postulacion.estado == body.filtro_estado)
+    if not is_admin(user.rol) and not (org and org.id_usuario_org == user.id):
+        # Un tutor solo escribe a los voluntarios que participan en su voluntariado.
+        stmt = stmt.where(Postulacion.estado == "Seleccionado", Postulacion.estado_confirmacion != "No confirmado")
     destinatarios = db.execute(stmt).all()
     if not destinatarios:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "No hay postulantes para ese filtro")
@@ -483,7 +499,7 @@ async def subir_imagen(
 ) -> dict[str, Any]:
     """Banner opcional de la convocatoria: lo sube el encargado, el administrador de la org o INJUV."""
     op = get_oportunidad_or_404(db, oportunidad_id)
-    ensure_can_manage(db, op, user)
+    ensure_can_manage(db, op, user, solo_admin_org=True)
     name, _, _ = await files.save_upload(imagen, IMAGEN_FOLDER, f"op_{op.id}", files.IMAGE_EXTS, 5)
     files.delete(IMAGEN_FOLDER, op.imagen_filename)
     op.imagen_filename = name
@@ -494,7 +510,7 @@ async def subir_imagen(
 @router.delete("/{oportunidad_id}/imagen")
 def quitar_imagen(oportunidad_id: int, db: DbSession, user: CurrentUser) -> dict[str, Any]:
     op = get_oportunidad_or_404(db, oportunidad_id)
-    ensure_can_manage(db, op, user)
+    ensure_can_manage(db, op, user, solo_admin_org=True)
     files.delete(IMAGEN_FOLDER, op.imagen_filename)
     op.imagen_filename = None
     db.commit()

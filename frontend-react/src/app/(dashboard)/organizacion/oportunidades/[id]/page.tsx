@@ -10,7 +10,7 @@ import { useApi } from "@/hooks/useApi";
 import { apiFetch } from "@/lib/api";
 import { ESTADOS_POSTULACION } from "@/lib/constants";
 import { formatDate } from "@/lib/format";
-import { puedeGestionarOportunidad } from "@/lib/permisos";
+import { puedeGestionarOportunidad, puedeTutorear } from "@/lib/permisos";
 import type { Oportunidad, Postulante } from "@/lib/types";
 import { useAuth } from "@/providers/AuthProvider";
 import { useToast } from "@/providers/ToastProvider";
@@ -61,7 +61,9 @@ export default function PostulantesPage() {
   if (op.error || postulantes.error)
     return <ErrorState message={op.error ?? postulantes.error ?? "Error"} onRetry={() => { op.reload(); postulantes.reload(); }} />;
   const o = op.data!;
-  const soloLectura = !puedeGestionarOportunidad(user, o);
+  const gestiona = puedeGestionarOportunidad(user, o);
+  const soloLectura = !puedeTutorear(user, o);
+  const modo = gestiona ? "gestion" : soloLectura ? "lectura" : "tutor";
 
   return (
     <>
@@ -116,7 +118,12 @@ export default function PostulantesPage() {
 
       {soloLectura && (
         <Alert tone="blue" className="mt-4">
-          Estás viendo este voluntariado en <strong>modo lectura</strong>. Solo sus encargados y el administrador de la organización pueden cambiar estados, asistencia, horas y certificados.
+          Estás viendo este voluntariado en <strong>modo lectura</strong>. Solo sus tutores y el administrador de la organización pueden registrar asistencia y horas.
+        </Alert>
+      )}
+      {modo === "tutor" && (
+        <Alert tone="blue" className="mt-4">
+          Eres <strong>tutor</strong> de este voluntariado: puedes registrar asistencia y horas, evaluar a tus voluntarios y escribirles por correo. Los estados de postulación y los certificados los gestiona el administrador de la organización.
         </Alert>
       )}
 
@@ -160,7 +167,7 @@ export default function PostulantesPage() {
             description={estadoFiltro === "todos" ? "Comparte el enlace público del voluntariado para atraer postulantes." : undefined}
           />
         ) : (
-          lista.map((p) => <PostulanteCard key={p.id} p={p} oportunidadTitulo={o.titulo} preguntas={o.preguntas} soloLectura={soloLectura} onChanged={(next) => postulantes.setData((prev) => (prev ?? []).map((x) => (x.id === next.id ? { ...x, ...next } : x)))} />)
+          lista.map((p) => <PostulanteCard key={p.id} p={p} oportunidadTitulo={o.titulo} preguntas={o.preguntas} modo={modo} onChanged={(next) => postulantes.setData((prev) => (prev ?? []).map((x) => (x.id === next.id ? { ...x, ...next } : x)))} />)
         )}
       </div>
 
@@ -185,10 +192,14 @@ export default function PostulantesPage() {
             aria-label="Destinatarios"
             value={destinatarios}
             onChange={(e) => setDestinatarios(e.target.value)}
-            options={[
-              { value: "todos", label: `Todos los postulantes (${postulantes.data?.length ?? 0})` },
-              ...(ESTADOS_POSTULACION as unknown as string[]).map((e) => ({ value: e, label: `${e} (${conteo(e)})` })),
-            ]}
+            options={
+              gestiona
+                ? [
+                    { value: "todos", label: `Todos los postulantes (${postulantes.data?.length ?? 0})` },
+                    ...(ESTADOS_POSTULACION as unknown as string[]).map((e) => ({ value: e, label: `${e} (${conteo(e)})` })),
+                  ]
+                : [{ value: "todos", label: "Voluntarios seleccionados de este voluntariado" }]
+            }
           />
           <Input aria-label="Asunto" placeholder="Asunto del correo" value={asunto} onChange={(e) => setAsunto(e.target.value)} maxLength={200} required />
           <Textarea aria-label="Mensaje" placeholder="Escribe tu mensaje…" value={mensaje} onChange={(e) => setMensaje(e.target.value)} maxLength={5000} required />

@@ -10,7 +10,7 @@ import { Badge, Button, Card, ConfirmModal, EmptyState, ErrorState, LinkButton, 
 import { useApi } from "@/hooks/useApi";
 import { apiFetch } from "@/lib/api";
 import { formatDate } from "@/lib/format";
-import { puedeGestionarOportunidad } from "@/lib/permisos";
+import { esAdminOrganizacion, puedeGestionarOportunidad, puedeTutorear } from "@/lib/permisos";
 import type { Oportunidad } from "@/lib/types";
 import { useAuth } from "@/providers/AuthProvider";
 import { useToast } from "@/providers/ToastProvider";
@@ -19,6 +19,7 @@ function Contenido() {
   const params = useSearchParams();
   const toast = useToast();
   const { user } = useAuth();
+  const esAdminOrg = esAdminOrganizacion(user);
   const { data, loading, error, reload } = useApi<Oportunidad[]>("/oportunidades/mias");
   const [form, setForm] = useState<{ open: boolean; op: Oportunidad | null }>({ open: params.get("nueva") === "1", op: null });
   const [deleting, setDeleting] = useState<Oportunidad | null>(null);
@@ -67,11 +68,13 @@ function Contenido() {
     <>
       <PageHeader
         title="Mis voluntariados"
-        description="Crea, edita y gestiona las convocatorias de tu organización."
+        description={esAdminOrg ? "Crea, edita y gestiona las convocatorias de tu organización." : "Voluntariados en los que eres tutor."}
         actions={
-          <Button onClick={() => setForm({ open: true, op: null })}>
-            <Plus className="h-4 w-4" /> Publicar voluntariado
-          </Button>
+          esAdminOrg && (
+            <Button onClick={() => setForm({ open: true, op: null })}>
+              <Plus className="h-4 w-4" /> Publicar voluntariado
+            </Button>
+          )
         }
       />
       <div className="mb-6">
@@ -88,9 +91,11 @@ function Contenido() {
         <EmptyState
           icon={HeartHandshake}
           title={tab === "abiertas" ? "No tienes voluntariados abiertos" : "No hay voluntariados cerrados"}
-          description={tab === "abiertas" ? "Publica tu primera convocatoria para recibir postulantes." : undefined}
+          description={
+            tab !== "abiertas" ? undefined : esAdminOrg ? "Publica tu primera convocatoria para recibir postulantes." : "Aparecerán aquí cuando el administrador te asigne como tutor."
+          }
           action={
-            tab === "abiertas" && (
+            tab === "abiertas" && esAdminOrg && (
               <Button onClick={() => setForm({ open: true, op: null })}>
                 <Plus className="h-4 w-4" /> Publicar voluntariado
               </Button>
@@ -102,6 +107,7 @@ function Contenido() {
           {lista.map((op) => {
             const gestiona = puedeGestionarOportunidad(user, op);
             const aCargo = !!user && (op.encargados_ids ?? []).includes(user.id);
+            const tutorea = puedeTutorear(user, op);
             return (
             <Card key={op.id} className="p-5 sm:p-6">
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -111,8 +117,8 @@ function Contenido() {
                       {op.titulo}
                     </Link>
                     <Badge tone={op.estado === "cerrada" ? "slate" : "green"}>{op.estado === "cerrada" ? "Cerrada" : "Abierta"}</Badge>
-                    {aCargo && <Badge tone="blue">Estás a cargo</Badge>}
-                    {!gestiona && <Badge tone="slate">Solo lectura</Badge>}
+                    {aCargo && <Badge tone="blue">{gestiona ? "Estás a cargo" : "Eres tutor"}</Badge>}
+                    {!tutorea && <Badge tone="slate">Solo lectura</Badge>}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted">
                     <span className="flex items-center gap-1">
@@ -133,7 +139,7 @@ function Contenido() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <LinkButton href={`/organizacion/oportunidades/${op.id}`} variant="secondary" size="sm">
-                    <Users className="h-4 w-4" /> {gestiona ? "Postulantes" : "Ver postulantes"}
+                    <Users className="h-4 w-4" /> {tutorea ? "Postulantes" : "Ver postulantes"}
                   </LinkButton>
                   {gestiona && (
                   <>

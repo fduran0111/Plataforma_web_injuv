@@ -46,9 +46,12 @@ def _own(db: DbSession, postulacion_id: int, user: Usuario) -> tuple[Postulacion
     return p, op
 
 
-def _managed(db: DbSession, postulacion_id: int, user: Usuario) -> tuple[Postulacion, Oportunidad, Organizacion | None]:
+def _managed(
+    db: DbSession, postulacion_id: int, user: Usuario, solo_admin_org: bool = False
+) -> tuple[Postulacion, Oportunidad, Organizacion | None]:
+    """`solo_admin_org`: acciones que no puede hacer un tutor (estado de la postulación y certificados)."""
     p, op = _get(db, postulacion_id)
-    return p, op, ensure_can_manage(db, op, user)
+    return p, op, ensure_can_manage(db, op, user, solo_admin_org=solo_admin_org)
 
 
 def _touch_and_return(db: DbSession, p: Postulacion) -> dict[str, Any]:
@@ -136,7 +139,7 @@ def cambiar_estado(
     user: CurrentUser,
     background: BackgroundTasks,
 ) -> dict[str, Any]:
-    p, op, _ = _managed(db, postulacion_id, user)
+    p, op, _ = _managed(db, postulacion_id, user, solo_admin_org=True)
     if p.estado == ESTADO_DECLINADA:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "El voluntario declinó esta postulación")
     anterior = p.estado
@@ -210,7 +213,7 @@ async def subir_certificado(
     user: CurrentUser,
     certificado: UploadFile = File(...),
 ) -> dict[str, Any]:
-    p, op, _ = _managed(db, postulacion_id, user)
+    p, op, _ = _managed(db, postulacion_id, user, solo_admin_org=True)
     _exigir_fin_de_ciclo(p, op, "subir el certificado")
     name, _, _ = await files.save_upload(certificado, CERT_FOLDER, f"certificado_{p.id}", {".pdf"}, 10)
     files.delete(CERT_FOLDER, p.ruta_certificado_pdf)
@@ -222,7 +225,7 @@ async def subir_certificado(
 @router.post("/{postulacion_id}/certificado/generar")
 def generar_certificado(postulacion_id: int, db: DbSession, user: CurrentUser) -> dict[str, Any]:
     """Emite el certificado estándar INJUV con los datos de la postulación (sin subir un PDF a mano)."""
-    p, op, org = _managed(db, postulacion_id, user)
+    p, op, org = _managed(db, postulacion_id, user, solo_admin_org=True)
     _exigir_fin_de_ciclo(p, op, "emitir el certificado")
     voluntario = db.get(Usuario, p.usuario_id)
     pdf = certificado_service.generar_certificado(p, op, org, voluntario)
@@ -236,7 +239,7 @@ def generar_certificado(postulacion_id: int, db: DbSession, user: CurrentUser) -
 
 @router.delete("/{postulacion_id}/certificado")
 def eliminar_certificado(postulacion_id: int, db: DbSession, user: CurrentUser) -> dict[str, Any]:
-    p, _, _ = _managed(db, postulacion_id, user)
+    p, _, _ = _managed(db, postulacion_id, user, solo_admin_org=True)
     files.delete(CERT_FOLDER, p.ruta_certificado_pdf)
     p.ruta_certificado_pdf = None
     p.tiene_certificado = False
@@ -245,7 +248,7 @@ def eliminar_certificado(postulacion_id: int, db: DbSession, user: CurrentUser) 
 
 @router.post("/{postulacion_id}/enviar-certificado")
 def enviar_certificado(postulacion_id: int, body: EnviarCertificadoBody, db: DbSession, user: CurrentUser) -> dict[str, str]:
-    p, op, org = _managed(db, postulacion_id, user)
+    p, op, org = _managed(db, postulacion_id, user, solo_admin_org=True)
     pdf = files.leer_bytes(CERT_FOLDER, p.ruta_certificado_pdf)
     if pdf is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "No hay certificado subido para esta postulación")
