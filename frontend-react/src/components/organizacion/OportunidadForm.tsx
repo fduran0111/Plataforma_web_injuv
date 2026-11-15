@@ -1,10 +1,10 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Mail, Plus, Search, Trash2, X } from "lucide-react";
 import { useRef, useState } from "react";
 import FechasFields, { validarPeriodo } from "@/components/organizacion/FechasFields";
 import UbicacionFields, { type Ubicacion } from "@/components/UbicacionFields";
-import { Alert, Button, Checkbox, Field, Input, Modal, Select, Textarea } from "@/components/ui";
+import { Alert, Badge, Button, Checkbox, Field, Input, Modal, Select, Textarea } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { apiFetch, fileUrl } from "@/lib/api";
 import { AREAS_VOLUNTARIADO } from "@/lib/constants";
@@ -87,6 +87,13 @@ const preguntasDe = (op: Oportunidad): PreguntaForm[] =>
 const ubicacionesExtraDe = (op: Oportunidad): Ubicacion[] => (op.ubicaciones ?? []).slice(1).map((u) => ({ ...u }));
 
 type Integrante = { id: number; nombre: string; apellido: string; email: string; telefono: string; rol: "admin" | "miembro" };
+type CuentaEncontrada = { id: number; nombre: string | null; apellido: string | null; email: string };
+type EncargadoApi = { id: number; nombre: string; apellido: string; email: string; miembro: boolean };
+/** Encargado o contacto posible; `rol: "externo"` = cuenta que no pertenece a la organización. */
+type Persona = { id: number; nombre: string; apellido: string; email: string; telefono: string; rol: "admin" | "miembro" | "externo" };
+
+const nombreDe = (p: Persona) => [p.nombre, p.apellido].filter(Boolean).join(" ") || p.email;
+const ROL_LABEL: Record<Persona["rol"], string> = { admin: "Administrador", miembro: "Miembro", externo: "Externo" };
 
 export default function OportunidadForm({
   open,
@@ -108,28 +115,65 @@ export default function OportunidadForm({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const { data: integrantes } = useApi<Integrante[]>(open ? "/organizaciones/mia/integrantes" : null);
+  const { data: encargadosGuardados } = useApi<EncargadoApi[]>(open && oportunidad ? `/oportunidades/${oportunidad.id}/encargados` : null);
   const [encargados, setEncargados] = useState<number[]>(oportunidad?.encargados_ids ?? []);
-  const encargado = integrantes?.find(
-    (i) => i.email && i.email.toLowerCase() === form.responsable_email.trim().toLowerCase(),
+  const [buscados, setBuscados] = useState<Persona[]>([]);
+  const [correoEncargado, setCorreoEncargado] = useState("");
+  const [buscando, setBuscando] = useState(false);
+  const [errorEncargado, setErrorEncargado] = useState<string | null>(null);
+
+  /** Personas conocidas por id: integrantes (con teléfono), encargados ya guardados y cuentas buscadas por correo. */
+  const personas = new Map<number, Persona>();
+  for (const p of [...buscados, ...(encargadosGuardados ?? []).map((e) => ({ ...e, telefono: "", rol: "externo" as const }))]) {
+    personas.set(p.id, p);
+  }
+  for (const i of integrantes ?? []) personas.set(i.id, i);
+  const listaEncargados = encargados.map((id) => personas.get(id)).filter((p): p is Persona => !!p);
+  const contactos = [...(integrantes ?? []), ...listaEncargados.filter((p) => p.rol === "externo")];
+  const encargado = contactos.find(
+    (p) => p.email && p.email.toLowerCase() === form.responsable_email.trim().toLowerCase(),
   );
 
-  /** Marca o desmarca un encargado; el primero que se marca pasa a ser el contacto si aún no hay uno. */
-  function toggleEncargado(i: Integrante) {
-    const marcado = encargados.includes(i.id);
-    setEncargados((prev) => (marcado ? prev.filter((x) => x !== i.id) : [...prev, i.id]));
-    if (!marcado && !form.responsable_email.trim()) elegirEncargado(String(i.id));
+  /** Busca la cuenta por correo (igual que en la app) y la agrega como encargado. */
+  async function agregarEncargado() {
+    const email = correoEncargado.trim();
+    if (!email || buscando) return;
+    setBuscando(true);
+    setErrorEncargado(null);
+    try {
+      const c = await apiFetch<CuentaEncontrada>(`/usuarios/buscar?email=${encodeURIComponent(email)}`);
+      if (encargados.includes(c.id)) {
+        setErrorEncargado("Esa cuenta ya es encargada de este voluntariado");
+        return;
+      }
+      const persona: Persona = personas.get(c.id) ?? {
+        id: c.id,
+        nombre: (c.nombre ?? "").trim(),
+        apellido: (c.apellido ?? "").trim(),
+        email: c.email,
+        telefono: "",
+        rol: "externo",
+      };
+      setBuscados((prev) => [...prev.filter((p) => p.id !== c.id), persona]);
+      setEncargados((prev) => [...prev, c.id]);
+      setCorreoEncargado("");
+      if (!form.responsable_email.trim()) elegirContacto(persona);
+    } catch (err) {
+      setErrorEncargado((err as Error).message);
+    } finally {
+      setBuscando(false);
+    }
   }
 
-  /** Al elegir un integrante se copian sus datos; quedan editables por si hay que ajustar algo. */
-  function elegirEncargado(idTexto: string) {
-    const i = integrantes?.find((x) => String(x.id) === idTexto);
-    if (!i) return;
+  /** Al elegir un contacto se copian sus datos; quedan editables por si hay que ajustar algo. */
+  function elegirContacto(p: Persona | undefined) {
+    if (!p) return;
     setForm((f) => ({
       ...f,
-      responsable_nombre: i.nombre.slice(0, 50),
-      responsable_apellido: i.apellido.slice(0, 50),
-      responsable_email: i.email,
-      responsable_telefono: i.telefono.slice(0, 30),
+      responsable_nombre: p.nombre.slice(0, 50),
+      responsable_apellido: p.apellido.slice(0, 50),
+      responsable_email: p.email,
+      responsable_telefono: p.telefono.slice(0, 30),
     }));
   }
 
@@ -179,7 +223,8 @@ export default function OportunidadForm({
         responsable_email: form.responsable_email || null,
         responsable_email_institucional: form.responsable_email_institucional || null,
         responsable_telefono: form.responsable_telefono || null,
-        encargados_ids: encargados,
+        // Si una cuenta encargada se eliminó ya no aparece en la lista y se descarta al guardar.
+        encargados_ids: !oportunidad || encargadosGuardados ? listaEncargados.map((p) => p.id) : encargados,
       };
       const saved = oportunidad
         ? await apiFetch<Oportunidad>(`/oportunidades/${oportunidad.id}`, { method: "PUT", body })
@@ -386,38 +431,71 @@ export default function OportunidadForm({
           <p className="mb-3 mt-0.5 text-xs text-fg-muted">
             Solo los encargados (y el administrador de la organización) pueden editar este voluntariado y gestionar a sus postulantes. El resto del equipo lo verá en modo lectura.
           </p>
-          {!integrantes ? (
-            <p className="mb-4 text-sm text-fg-muted">Cargando equipo…</p>
-          ) : (
-            <div className="mb-5 grid gap-2 sm:grid-cols-2">
-              {integrantes.map((i) => (
-                <Checkbox
-                  key={i.id}
-                  checked={encargados.includes(i.id)}
-                  onChange={() => toggleEncargado(i)}
-                  label={
-                    <span>
-                      {[i.nombre, i.apellido].filter(Boolean).join(" ") || i.email}
-                      <span className="text-fg-muted"> · {i.rol === "admin" ? "Administrador" : "Miembro"}</span>
-                    </span>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-muted" aria-hidden />
+              <Input
+                type="email"
+                aria-label="Correo del encargado"
+                placeholder="encargado@correo.cl"
+                className="pl-9"
+                value={correoEncargado}
+                onChange={(e) => {
+                  setCorreoEncargado(e.target.value);
+                  setErrorEncargado(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    agregarEncargado();
                   }
-                />
-              ))}
+                }}
+              />
             </div>
+            <Button type="button" variant="outline" onClick={agregarEncargado} loading={buscando} disabled={!correoEncargado.trim()}>
+              <Search className="h-4 w-4" /> Agregar
+            </Button>
+          </div>
+          {errorEncargado && <p className="mt-1.5 text-xs text-red-700">{errorEncargado}</p>}
+          <p className="mt-1.5 text-xs text-fg-muted">
+            Puede ser cualquier cuenta registrada. Si no pertenece a la organización queda como encargado externo: conserva sus permisos de voluntario y no puede editar el voluntariado.
+          </p>
+          <p className="mb-2 mt-4 text-xs font-semibold text-fg-secondary">
+            {encargados.length === 1 ? "1 encargado" : `${encargados.length} encargados`}
+          </p>
+          {oportunidad && !encargadosGuardados && encargados.length > 0 ? (
+            <p className="mb-5 text-sm text-fg-muted">Cargando encargados…</p>
+          ) : (
+            <ul className="mb-5 grid gap-2 sm:grid-cols-2">
+              {listaEncargados.map((p) => (
+                <li key={p.id} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-fg">{nombreDe(p)}</p>
+                    <p className="truncate text-xs text-fg-muted">{p.email}</p>
+                  </div>
+                  <Badge tone={p.rol === "externo" ? "amber" : "green"}>{ROL_LABEL[p.rol]}</Badge>
+                  <button
+                    type="button"
+                    onClick={() => setEncargados((prev) => prev.filter((x) => x !== p.id))}
+                    className="rounded-sm p-1 text-fg-muted hover:text-fg"
+                    aria-label={`Quitar a ${nombreDe(p)}`}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
           <p className="mb-4 text-sm font-semibold text-fg">Responsable de la actividad (visible para postulantes)</p>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Contacto del equipo" hint="Elige un integrante y se completan sus datos" className="sm:col-span-2">
+            <Field label="Contacto" hint="Elige un integrante o encargado y se completan sus datos" className="sm:col-span-2">
               {(id) => (
                 <Select
                   id={id}
                   value={encargado ? String(encargado.id) : ""}
-                  onChange={(e) => elegirEncargado(e.target.value)}
-                  placeholder={integrantes ? (encargado ? undefined : "Selecciona un integrante (o completa a mano)") : "Cargando equipo…"}
-                  options={(integrantes ?? []).map((i) => ({
-                    value: String(i.id),
-                    label: `${[i.nombre, i.apellido].filter(Boolean).join(" ") || i.email} · ${i.rol === "admin" ? "Administrador" : "Miembro"}`,
-                  }))}
+                  onChange={(e) => elegirContacto(contactos.find((p) => String(p.id) === e.target.value))}
+                  placeholder={integrantes ? (encargado ? undefined : "Selecciona una persona (o completa a mano)") : "Cargando equipo…"}
+                  options={contactos.map((p) => ({ value: String(p.id), label: `${nombreDe(p)} · ${ROL_LABEL[p.rol]}` }))}
                 />
               )}
             </Field>

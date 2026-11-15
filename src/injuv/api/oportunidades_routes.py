@@ -9,10 +9,10 @@ from sqlalchemy import Text, and_, cast, func, or_, select, update
 
 from injuv.api.deps import CurrentUser, DbSession, MemberOrganization, OptionalUser
 from injuv.db.models import Oportunidad, Organizacion, Postulacion, Usuario
-from injuv.schemas.oportunidades import CorreoMasivoBody, EstadoOportunidadBody, FechasBody, OportunidadBody, PostularBody
+from injuv.schemas.oportunidades import CorreoMasivoBody, EncargadosBody, EstadoOportunidadBody, FechasBody, OportunidadBody, PostularBody
 from injuv.security.rbac import is_admin, normalize_role
 from injuv.services import files, mailer, serializers
-from injuv.services.catalogo import ESTADO_DECLINADA, ESTADOS_OPORTUNIDAD_ABIERTOS
+from injuv.services.catalogo import ESTADO_DECLINADA, ESTADOS_OPORTUNIDAD_ABIERTOS, rechazo_participacion
 
 router = APIRouter(prefix="/oportunidades", tags=["Oportunidades"])
 
@@ -83,14 +83,14 @@ def ensure_can_view(db: DbSession, op: Oportunidad, user: Usuario) -> Organizaci
     raise HTTPException(status.HTTP_403_FORBIDDEN, "No tienes permisos sobre esta oportunidad")
 
 
-def _encargados_validos(db: DbSession, org: Organizacion, ids: list[int]) -> list[int]:
-    """Solo integrantes de la organización (administrador o miembros), sin repetir."""
-    validos = {org.id_usuario_org} if org.id_usuario_org else set()
-    validos |= set(db.scalars(select(Usuario.id).where(Usuario.organizacion_afiliada == org.id)))
-    invalidos = [i for i in ids if i not in validos]
-    if invalidos:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Los encargados deben ser integrantes de la organización")
-    return list(dict.fromkeys(ids))
+def _encargados_validos(db: DbSession, ids: list[int]) -> list[int]:
+    """Cualquier cuenta registrada, sin repetir. Un encargado externo (no integrante) no gana permisos
+    de organización: `ensure_can_manage` exige además pertenecer a la organización."""
+    unicos = list(dict.fromkeys(ids))
+    existentes = set(db.scalars(select(Usuario.id).where(Usuario.id.in_(unicos)))) if unicos else set()
+    if len(existentes) != len(unicos):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Algún encargado ya no tiene una cuenta registrada")
+    return unicos
 
 
 def _serialize(db: DbSession, op: Oportunidad) -> dict[str, Any]:
@@ -160,6 +160,20 @@ def listar_de_mi_organizacion(db: DbSession, org: MemberOrganization) -> list[di
     return listar(db, estado="todas", organizacion_id=org.id, limit=500)
 
 
+@router.get("/tutorias")
+def listar_mis_tutorias(db: DbSession, user: CurrentUser) -> list[dict[str, Any]]:
+    """Voluntariados donde la cuenta es encargada/tutora (integrante o externa), para la web y la app."""
+    counts = _count_subquery()
+    stmt = (
+        select(Oportunidad, Organizacion, func.coalesce(counts.c.n, 0))
+        .join(Organizacion, Organizacion.id == Oportunidad.organizacion_id)
+        .outerjoin(counts, counts.c.oportunidad_id == Oportunidad.id)
+        .where(Oportunidad.encargados_ids.contains([user.id]))
+        .order_by(Oportunidad.created_at.desc())
+    )
+    return [serializers.oportunidad(op, org, n) for op, org, n in db.execute(stmt).all()]
+
+
 @router.get("/{oportunidad_id}")
 def obtener(oportunidad_id: int, db: DbSession, user: OptionalUser) -> dict[str, Any]:
     cerrar_convocatorias_vencidas(db)
@@ -171,7 +185,7 @@ def obtener(oportunidad_id: int, db: DbSession, user: OptionalUser) -> dict[str,
             select(Postulacion).where(Postulacion.oportunidad_id == op.id, Postulacion.usuario_id == user.id)
         )
         if p:
-            data["mi_postulacion"] = {"id": p.id, "estado": p.estado}
+            data["mi_postulacion"] = {"id": p.id, "estado": p.estado, "estado_confirmacion": p.estado_confirmacion}
     return data
 
 
@@ -194,7 +208,7 @@ def crear(body: OportunidadBody, db: DbSession, org: MemberOrganization, user: C
     _no_en_el_pasado({c: getattr(body, c) for c in _CAMPOS_FECHA})
     op = Oportunidad(organizacion_id=org.id, estado="activa", created_at=datetime.now())
     _apply_body(op, body)
-    encargados = _encargados_validos(db, org, body.encargados_ids)
+    encargados = _encargados_validos(db, body.encargados_ids)
     if user.id != org.id_usuario_org and user.id not in encargados:
         encargados.append(user.id)  # un miembro que publica queda a cargo de su voluntariado
     op.encargados_ids = encargados
@@ -209,10 +223,10 @@ def actualizar(
     oportunidad_id: int, body: OportunidadBody, db: DbSession, user: CurrentUser, background: BackgroundTasks
 ) -> dict[str, Any]:
     op = get_oportunidad_or_404(db, oportunidad_id)
-    org = ensure_can_manage(db, op, user)
+    ensure_can_manage(db, op, user)
     cambios = _cambios_de_fecha(op, {c: getattr(body, c) for c in _CAMPOS_FECHA})
     _no_en_el_pasado({c: nuevo for c, (_, nuevo) in cambios.items()})
-    encargados = _encargados_validos(db, org, body.encargados_ids) if org else body.encargados_ids
+    encargados = _encargados_validos(db, body.encargados_ids)
     _apply_body(op, body)
     op.encargados_ids = encargados
     db.commit()
@@ -341,6 +355,40 @@ def _validar_respuestas(op: Oportunidad, respuestas: dict[str, str]) -> dict[str
     return limpias
 
 
+def _encargados_detalle(db: DbSession, op: Oportunidad, org: Organizacion | None) -> list[dict[str, Any]]:
+    ids = [x for x in (op.encargados_ids or []) if isinstance(x, int)]
+    por_id = {u.id: u for u in db.scalars(select(Usuario).where(Usuario.id.in_(ids)))} if ids else {}
+    return [
+        {
+            "id": u.id,
+            "nombre": (u.nombre or "").strip(),
+            "apellido": (u.apellido or "").strip(),
+            "email": u.email or "",
+            "miembro": bool(org and (u.id == org.id_usuario_org or u.organizacion_afiliada == org.id)),
+        }
+        for u in (por_id[i] for i in ids if i in por_id)
+    ]
+
+
+@router.get("/{oportunidad_id}/encargados")
+def listar_encargados(oportunidad_id: int, db: DbSession, user: CurrentUser) -> list[dict[str, Any]]:
+    """Encargados con nombre y correo; `miembro` indica si pertenecen a la organización o son externos."""
+    op = get_oportunidad_or_404(db, oportunidad_id)
+    return _encargados_detalle(db, op, ensure_can_view(db, op, user))
+
+
+@router.put("/{oportunidad_id}/encargados")
+def actualizar_encargados(
+    oportunidad_id: int, body: EncargadosBody, db: DbSession, user: CurrentUser
+) -> list[dict[str, Any]]:
+    """Solo cambia los encargados (lo usa la app móvil; la web los envía junto al formulario completo)."""
+    op = get_oportunidad_or_404(db, oportunidad_id)
+    org = ensure_can_manage(db, op, user)
+    op.encargados_ids = _encargados_validos(db, body.encargados_ids)
+    db.commit()
+    return _encargados_detalle(db, op, org)
+
+
 @router.post("/{oportunidad_id}/postular", status_code=status.HTTP_201_CREATED)
 def postular(
     oportunidad_id: int, db: DbSession, user: CurrentUser, background: BackgroundTasks, body: PostularBody | None = None
@@ -348,7 +396,10 @@ def postular(
     op = get_oportunidad_or_404(db, oportunidad_id)
     if normalize_role(user.rol) != "user":
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo las cuentas de voluntario pueden postular")
-    if db.scalar(select(Postulacion.id).where(Postulacion.oportunidad_id == op.id, Postulacion.usuario_id == user.id)):
+    existente = db.scalar(
+        select(Postulacion).where(Postulacion.oportunidad_id == op.id, Postulacion.usuario_id == user.id)
+    )
+    if existente and not rechazo_participacion(existente):
         raise HTTPException(status.HTTP_409_CONFLICT, "Ya postulaste a esta oportunidad")
     total = db.scalar(select(func.count(Postulacion.id)).where(Postulacion.oportunidad_id == op.id)) or 0
     if op.estado in ESTADOS_OPORTUNIDAD_ABIERTOS and (motivo := _motivo_cierre(op, total)):
@@ -358,24 +409,32 @@ def postular(
     if op.estado not in ESTADOS_OPORTUNIDAD_ABIERTOS:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "La oportunidad no está recibiendo postulaciones")
     now = datetime.now()
-    p = Postulacion(
-        usuario_id=user.id,
-        oportunidad_id=op.id,
-        estado="Pendiente de revisión",
-        estado_confirmacion="Pendiente",
-        asistencia_capacitacion="No aplica",
-        asistencia_actividad="No aplica",
-        tiene_certificado=False,
-        resena_org_publica=False,
-        horas_voluntariado=0,
-        respuestas=_validar_respuestas(op, (body.respuestas if body else {}) or {}),
-        created_at=now,
-        updated_at=now,
-    )
-    db.add(p)
-    # Esta postulación completa la meta: la convocatoria se cierra en el mismo momento
-    if op.meta_postulantes and total + 1 >= op.meta_postulantes:
-        op.estado = "cerrada"
+    if existente:
+        # Re-postulación tras retirarse: se reactiva la misma postulación en revisión.
+        existente.estado = "Pendiente de revisión"
+        existente.estado_confirmacion = "Pendiente"
+        existente.respuestas = _validar_respuestas(op, (body.respuestas if body else {}) or {})
+        existente.updated_at = now
+        p = existente
+    else:
+        p = Postulacion(
+            usuario_id=user.id,
+            oportunidad_id=op.id,
+            estado="Pendiente de revisión",
+            estado_confirmacion="Pendiente",
+            asistencia_capacitacion="No aplica",
+            asistencia_actividad="No aplica",
+            tiene_certificado=False,
+            resena_org_publica=False,
+            horas_voluntariado=0,
+            respuestas=_validar_respuestas(op, (body.respuestas if body else {}) or {}),
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(p)
+        # Esta postulación completa la meta: la convocatoria se cierra en el mismo momento
+        if op.meta_postulantes and total + 1 >= op.meta_postulantes:
+            op.estado = "cerrada"
     db.commit()
     org = db.get(Organizacion, op.organizacion_id)
     background.add_task(
