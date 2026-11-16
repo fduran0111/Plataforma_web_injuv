@@ -28,7 +28,7 @@ def _es_staff(op: Oportunidad, org: Organizacion | None, user: Usuario) -> bool:
     """Admin INJUV, administrador de la organización o tutor (integrante encargado) del voluntariado."""
     if is_admin(user.rol) or (org and org.id_usuario_org == user.id):
         return True
-    return bool(org and user.organizacion_afiliada == org.id and user.id in (op.encargados_ids or []))
+    return bool(org and org.id in (user.organizaciones_ids or []) and user.id in (op.encargados_ids or []))
 
 
 def _participa(db: DbSession, op: Oportunidad, user: Usuario) -> bool:
@@ -65,12 +65,12 @@ def mis_foros(db: DbSession, user: CurrentUser) -> list[dict[str, Any]]:
     org_propia = db.scalar(select(Organizacion).where(Organizacion.id_usuario_org == user.id))
     if org_propia:
         ops |= {o.id: o for o in db.scalars(select(Oportunidad).where(Oportunidad.organizacion_id == org_propia.id))}
-    if user.organizacion_afiliada:
+    if user.organizaciones_ids:
         ops |= {
             o.id: o
             for o in db.scalars(
                 select(Oportunidad).where(
-                    Oportunidad.organizacion_id == user.organizacion_afiliada,
+                    Oportunidad.organizacion_id.in_(user.organizaciones_ids),
                     Oportunidad.encargados_ids.contains([user.id]),
                 )
             )

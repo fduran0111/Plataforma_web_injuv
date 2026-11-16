@@ -192,7 +192,10 @@ export default function PostulanteCard({
           </div>
         </div>
         <div className="flex flex-col items-end gap-1.5">
-          <Badge tone={ESTADO_POSTULACION_TONE[p.estado] ?? "neutral"}>{p.estado}</Badge>
+          <div className="flex gap-1.5">
+            {p.es_encargado && <Badge tone="violet">Tutor</Badge>}
+            <Badge tone={ESTADO_POSTULACION_TONE[p.estado] ?? "neutral"}>{p.estado}</Badge>
+          </div>
           <div className="flex gap-1.5">
             <Button size="sm" variant="secondary" onClick={toggleFicha} aria-expanded={fichaOpen}>
               {fichaOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />} Ficha

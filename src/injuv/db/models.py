@@ -35,6 +35,7 @@ class Usuario(Base):
     certificado_voluntariado: Mapped[Any] = mapped_column(JSONB)
     certificado_personales: Mapped[Any] = mapped_column(JSONB)
     organizacion_afiliada: Mapped[int | None] = mapped_column(Integer)
+    organizaciones_ids: Mapped[Any] = mapped_column(JSONB, default=list)
     created_at: Mapped[datetime | None] = mapped_column(DateTime)
     foto_perfil: Mapped[str | None] = mapped_column(String(255))
 

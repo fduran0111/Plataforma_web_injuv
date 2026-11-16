@@ -93,3 +93,21 @@ def get_member_organization(db: DbSession, user: CurrentUser) -> Organizacion:
 
 
 MemberOrganization = Annotated[Organizacion, Depends(get_member_organization)]
+
+
+def org_elegida(db: Session, user: Usuario, org_id: int | None, solo_admin: bool = False) -> Organizacion:
+    """Organización indicada por `org_id` si el usuario pertenece a ella (miembro o administrador);
+    sin parámetro, su organización principal. `solo_admin` exige ser su administrador."""
+    if org_id is None:
+        org, _ = organizacion_de_usuario(db, user)
+        if not org:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "No perteneces a ninguna organización")
+    else:
+        org = db.get(Organizacion, org_id)
+        if not org:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Organización no encontrada")
+        if org.id_usuario_org != user.id and org.id not in (user.organizaciones_ids or []):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "No perteneces a esa organización")
+    if solo_admin and org.id_usuario_org != user.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo el administrador de la organización puede hacer esto")
+    return org

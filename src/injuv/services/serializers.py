@@ -54,6 +54,7 @@ def usuario(u: Usuario) -> dict[str, Any]:
         "sexo": u.sexo or "",
         "fecha_nacimiento": u.fecha_nacimiento,
         "rol": normalize_role(u.rol),
+        "organizaciones_ids": [x for x in (u.organizaciones_ids or []) if isinstance(x, int)],
         "horas_voluntariado": u.hora_voluntariado or 0,
         "tiene_foto": bool(u.foto_perfil),
         "foto_version": u.foto_perfil,
@@ -206,6 +207,7 @@ def postulacion_para_org(p: Postulacion, u: Usuario | None, op: Oportunidad | No
     data = postulacion_base(p)
     data.update(
         _ciclo(p, op),
+        es_encargado=bool(op and p.usuario_id in (op.encargados_ids or [])),
         usuario_nombre=nombre_completo(u),
         usuario_email=(u.email if u else "") or "",
         usuario_telefono=(u.telefono if u else "") or "",

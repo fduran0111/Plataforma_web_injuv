@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import Text, and_, cast, func, or_, select, update
 
-from injuv.api.deps import CurrentUser, DbSession, MemberOrganization, OptionalUser, OwnOrganization
+from injuv.api.deps import CurrentUser, DbSession, OptionalUser, OwnOrganization, org_elegida
 from injuv.db.models import Oportunidad, Organizacion, Postulacion, Usuario
 from injuv.schemas.oportunidades import CorreoMasivoBody, EncargadosBody, EstadoOportunidadBody, FechasBody, OportunidadBody, PostularBody
 from injuv.security.rbac import is_admin, normalize_role
@@ -20,8 +20,11 @@ _FIELD_MAP = {"region": "region_opor", "ciudad": "ciudad_opor", "comuna": "comun
 
 
 def _count_subquery():
+    # Los encargados (tutores) no cuentan como postulantes: sus postulaciones van aparte.
     return (
         select(Postulacion.oportunidad_id, func.count(Postulacion.id).label("n"))
+        .join(Oportunidad, Oportunidad.id == Postulacion.oportunidad_id)
+        .where(~Oportunidad.encargados_ids.contains(func.jsonb_build_array(Postulacion.usuario_id)))
         .group_by(Postulacion.oportunidad_id)
         .subquery()
     )
@@ -68,7 +71,7 @@ def ensure_can_manage(db: DbSession, op: Oportunidad, user: Usuario, solo_admin_
     org = db.get(Organizacion, op.organizacion_id)
     if is_admin(user.rol) or (org and org.id_usuario_org == user.id):
         return org
-    if org and not solo_admin_org and user.organizacion_afiliada == org.id and user.id in (op.encargados_ids or []):
+    if org and not solo_admin_org and org.id in (user.organizaciones_ids or []) and user.id in (op.encargados_ids or []):
         return org
     raise HTTPException(
         status.HTTP_403_FORBIDDEN,
@@ -84,18 +87,19 @@ def ensure_can_view(db: DbSession, op: Oportunidad, user: Usuario) -> Organizaci
     org = db.get(Organizacion, op.organizacion_id)
     if is_admin(user.rol) or (org and org.id_usuario_org == user.id):
         return org
-    if org and user.organizacion_afiliada == org.id and user.id in (op.encargados_ids or []):
+    if org and org.id in (user.organizaciones_ids or []) and user.id in (op.encargados_ids or []):
         return org
     raise HTTPException(status.HTTP_403_FORBIDDEN, "No tienes permisos sobre esta oportunidad")
 
 
 def _encargados_validos(db: DbSession, org: Organizacion | None, ids: list[int]) -> list[int]:
-    """Solo integrantes de la organización (administrador o miembros), sin repetir."""
+    """Solo integrantes de la organización (administrador o miembros), sin repetir.
+    Un usuario puede ser miembro de varias organizaciones (`organizaciones_ids`)."""
     unicos = list(dict.fromkeys(ids))
     if org is None:
         return unicos
     validos = {org.id_usuario_org} if org.id_usuario_org else set()
-    validos |= set(db.scalars(select(Usuario.id).where(Usuario.organizacion_afiliada == org.id)))
+    validos |= set(db.scalars(select(Usuario.id).where(Usuario.organizaciones_ids.contains([org.id]))))
     if any(i not in validos for i in unicos):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Los encargados deben ser integrantes de la organización")
     return unicos
@@ -103,7 +107,12 @@ def _encargados_validos(db: DbSession, org: Organizacion | None, ids: list[int])
 
 def _serialize(db: DbSession, op: Oportunidad) -> dict[str, Any]:
     org = db.get(Organizacion, op.organizacion_id)
-    n = db.scalar(select(func.count(Postulacion.id)).where(Postulacion.oportunidad_id == op.id)) or 0
+    n = db.scalar(
+        select(func.count(Postulacion.id)).where(
+            Postulacion.oportunidad_id == op.id,
+            Postulacion.usuario_id.not_in(op.encargados_ids or [-1]),
+        )
+    ) or 0
     return serializers.oportunidad(op, org, n)
 
 
@@ -164,8 +173,9 @@ def listar(
 
 
 @router.get("/mias")
-def listar_de_mi_organizacion(db: DbSession, org: MemberOrganization, user: CurrentUser) -> list[dict[str, Any]]:
+def listar_de_mi_organizacion(db: DbSession, user: CurrentUser, org_id: int | None = None) -> list[dict[str, Any]]:
     """El administrador ve todos los voluntariados de su organización; un tutor, solo los que tiene a cargo."""
+    org = org_elegida(db, user, org_id)
     lista = listar(db, estado="todas", organizacion_id=org.id, limit=500)
     if org.id_usuario_org == user.id:
         return lista
@@ -174,7 +184,7 @@ def listar_de_mi_organizacion(db: DbSession, org: MemberOrganization, user: Curr
 
 @router.get("/tutorias")
 def listar_mis_tutorias(db: DbSession, user: CurrentUser) -> list[dict[str, Any]]:
-    """Voluntariados de su organización donde la cuenta es tutora (encargada), para la web y la app."""
+    """Voluntariados donde la cuenta es tutora (encargada), de cualquier organización."""
     counts = _count_subquery()
     stmt = (
         select(Oportunidad, Organizacion, func.coalesce(counts.c.n, 0))
@@ -182,7 +192,7 @@ def listar_mis_tutorias(db: DbSession, user: CurrentUser) -> list[dict[str, Any]
         .outerjoin(counts, counts.c.oportunidad_id == Oportunidad.id)
         .where(
             Oportunidad.encargados_ids.contains([user.id]),
-            or_(Organizacion.id_usuario_org == user.id, Oportunidad.organizacion_id == user.organizacion_afiliada),
+            or_(Organizacion.id_usuario_org == user.id, Oportunidad.organizacion_id.in_(user.organizaciones_ids or [-1])),
         )
         .order_by(Oportunidad.created_at.desc())
     )
@@ -267,6 +277,7 @@ def _avisar_cambio_fechas(
         .where(
             Postulacion.oportunidad_id == op.id,
             Postulacion.estado.not_in(("No seleccionado", ESTADO_DECLINADA)),
+            Postulacion.usuario_id.not_in(op.encargados_ids or [-1]),
         )
     ).all()
     for email, nombre in rows:
@@ -302,7 +313,12 @@ def cambiar_estado(
     op = get_oportunidad_or_404(db, oportunidad_id)
     ensure_can_manage(db, op, user, solo_admin_org=True)
     if body.estado != "cerrada":
-        total = db.scalar(select(func.count(Postulacion.id)).where(Postulacion.oportunidad_id == op.id)) or 0
+        total = db.scalar(
+            select(func.count(Postulacion.id)).where(
+                Postulacion.oportunidad_id == op.id,
+                Postulacion.usuario_id.not_in(op.encargados_ids or [-1]),
+            )
+        ) or 0
         if motivo := _motivo_cierre(op, total):
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
@@ -314,7 +330,11 @@ def cambiar_estado(
         rows = db.execute(
             select(Usuario.email, Usuario.nombre)
             .join(Postulacion, Postulacion.usuario_id == Usuario.id)
-            .where(Postulacion.oportunidad_id == op.id, Postulacion.estado != "No seleccionado")
+            .where(
+                Postulacion.oportunidad_id == op.id,
+                Postulacion.estado != "No seleccionado",
+                Postulacion.usuario_id.not_in(op.encargados_ids or [-1]),
+            )
         ).all()
         for email, nombre in rows:
             background.add_task(mailer.notify_oportunidad_cerrada, email, nombre or "", op.titulo)
@@ -376,7 +396,7 @@ def _encargados_detalle(db: DbSession, op: Oportunidad, org: Organizacion | None
             "nombre": (u.nombre or "").strip(),
             "apellido": (u.apellido or "").strip(),
             "email": u.email or "",
-            "miembro": bool(org and (u.id == org.id_usuario_org or u.organizacion_afiliada == org.id)),
+            "miembro": bool(org and (u.id == org.id_usuario_org or org.id in (u.organizaciones_ids or []))),
         }
         for u in (por_id[i] for i in ids if i in por_id)
     ]
@@ -414,7 +434,12 @@ def postular(
     )
     if existente and not rechazo_participacion(existente):
         raise HTTPException(status.HTTP_409_CONFLICT, "Ya postulaste a esta oportunidad")
-    total = db.scalar(select(func.count(Postulacion.id)).where(Postulacion.oportunidad_id == op.id)) or 0
+    total = db.scalar(
+        select(func.count(Postulacion.id)).where(
+            Postulacion.oportunidad_id == op.id,
+            Postulacion.usuario_id.not_in(op.encargados_ids or [-1]),
+        )
+    ) or 0
     if op.estado in ESTADOS_OPORTUNIDAD_ABIERTOS and (motivo := _motivo_cierre(op, total)):
         op.estado = "cerrada"
         db.commit()
@@ -465,7 +490,10 @@ def correo_masivo(oportunidad_id: int, body: CorreoMasivoBody, db: DbSession, us
     stmt = (
         select(Usuario.email, Usuario.nombre)
         .join(Postulacion, Postulacion.usuario_id == Usuario.id)
-        .where(Postulacion.oportunidad_id == op.id)
+        .where(
+            Postulacion.oportunidad_id == op.id,
+            Postulacion.usuario_id.not_in(op.encargados_ids or [-1]),
+        )
     )
     if body.filtro_estado != "todos":
         stmt = stmt.where(Postulacion.estado == body.filtro_estado)

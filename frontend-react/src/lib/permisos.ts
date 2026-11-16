@@ -10,10 +10,12 @@ export function puedeGestionarOportunidad(user: Usuario | null, op: OpPermisos):
   return user.organizacion?.id === op.organizacion_id && user.organizacion.rol === "admin";
 }
 
-/** Tutor: integrante de la organización asignado como encargado del voluntariado. */
+/** Tutor: integrante de la organización asignado como encargado del voluntariado.
+ * Un usuario puede ser integrante de varias organizaciones (`organizaciones_ids`). */
 export function esTutorDe(user: Usuario | null, op: OpPermisos): boolean {
-  if (!user || user.organizacion?.id !== op.organizacion_id) return false;
-  return (op.encargados_ids ?? []).includes(user.id);
+  if (!user) return false;
+  const pertenece = user.organizacion?.id === op.organizacion_id || (user.organizaciones_ids ?? []).includes(op.organizacion_id);
+  return pertenece && (op.encargados_ids ?? []).includes(user.id);
 }
 
 /** Acciones de tutor (asistencia, horas, evaluación y correo a sus voluntarios). La API valida igual. */

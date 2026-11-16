@@ -27,6 +27,8 @@ export type Usuario = {
   created_at: string | null;
   /** `rol`: "admin" = administrador de la organización (todo), "miembro" = solo voluntariados y academia. */
   organizacion: { id: number; nombre: string | null; rol?: "admin" | "miembro" } | null;
+  /** Todas las organizaciones donde es miembro (puede pertenecer a varias). */
+  organizaciones_ids?: number[];
 };
 
 export type EstadoOportunidad = "activa" | "abierta" | "cerrada";
@@ -126,6 +128,8 @@ export type PostulacionUsuario = PostulacionBase & CicloPostulacion & {
 };
 
 export type Postulante = PostulacionBase & CicloPostulacion & {
+  /** El postulante también es tutor/encargado del voluntariado: se muestra aparte y no cuenta en los totales. */
+  es_encargado: boolean;
   usuario_nombre: string;
   usuario_email: string;
   usuario_telefono: string;

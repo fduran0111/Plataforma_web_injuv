@@ -31,12 +31,16 @@ export default function PostulantesPage() {
   const [sending, setSending] = useState(false);
 
   const preguntasFiltrables = (op.data?.preguntas ?? []).filter((q) => q.tipo !== "texto");
-  const lista = (postulantes.data ?? []).filter(
+  // Los tutores/encargados postulan como cualquier usuario, pero no cuentan como postulantes:
+  // se muestran en una sección aparte al final.
+  const voluntarios = (postulantes.data ?? []).filter((p) => !p.es_encargado);
+  const encargados = (postulantes.data ?? []).filter((p) => p.es_encargado);
+  const lista = voluntarios.filter(
     (p) =>
       (estadoFiltro === "todos" || p.estado === estadoFiltro) &&
       Object.entries(filtroPregunta).every(([pid, valor]) => !valor || (p.respuestas ?? {})[pid] === valor),
   );
-  const conteo = (e: string) => (postulantes.data ?? []).filter((p) => p.estado === e).length;
+  const conteo = (e: string) => voluntarios.filter((p) => p.estado === e).length;
 
   async function enviarCorreo(e: React.FormEvent) {
     e.preventDefault();
@@ -89,12 +93,12 @@ export default function PostulantesPage() {
               </span>
             )}
             <span className="flex items-center gap-1.5">
-              <Users className="h-4 w-4" /> {postulantes.data?.length ?? 0} postulantes
+              <Users className="h-4 w-4" /> {voluntarios.length} postulantes
             </span>
             {o.meta_postulantes ? (
               <span className="flex items-center gap-1.5">
                 <Target className="h-4 w-4" /> Meta: {o.meta_postulantes}
-                {(postulantes.data?.length ?? 0) >= o.meta_postulantes ? " (alcanzada)" : ` (faltan ${o.meta_postulantes - (postulantes.data?.length ?? 0)})`}
+                {voluntarios.length >= o.meta_postulantes ? " (alcanzada)" : ` (faltan ${o.meta_postulantes - voluntarios.length})`}
               </span>
             ) : null}
             {o.cupo_maximo ? (
@@ -106,7 +110,7 @@ export default function PostulantesPage() {
         </div>
         <div className="flex gap-2">
           {!soloLectura && (
-            <Button variant="outline" size="sm" disabled={!postulantes.data?.length} onClick={() => setCorreoOpen(true)}>
+            <Button variant="outline" size="sm" disabled={!voluntarios.length} onClick={() => setCorreoOpen(true)}>
               <Mail className="h-4 w-4" /> Correo masivo
             </Button>
           )}
@@ -132,7 +136,7 @@ export default function PostulantesPage() {
           value={estadoFiltro}
           onChange={setEstadoFiltro}
           tabs={[
-            { value: "todos", label: "Todos", count: postulantes.data?.length },
+            { value: "todos", label: "Todos", count: voluntarios.length },
             ...(ESTADOS_POSTULACION as unknown as string[]).map((e) => ({ value: e, label: e, count: conteo(e) })),
           ]}
         />
@@ -171,6 +175,16 @@ export default function PostulantesPage() {
         )}
       </div>
 
+      {encargados.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-sm font-semibold text-fg">Tutores que postularon ({encargados.length})</h2>
+          <p className="mt-1 text-xs text-fg-muted">Son encargados de este voluntariado: su postulación no cuenta en los totales de arriba.</p>
+          <div className="mt-3 space-y-4">
+            {encargados.map((p) => <PostulanteCard key={p.id} p={p} oportunidadTitulo={o.titulo} preguntas={o.preguntas} modo={modo} onChanged={(next) => postulantes.setData((prev) => (prev ?? []).map((x) => (x.id === next.id ? { ...x, ...next } : x)))} />)}
+          </div>
+        </div>
+      )}
+
       <Modal
         open={correoOpen}
         onClose={() => setCorreoOpen(false)}
@@ -195,7 +209,7 @@ export default function PostulantesPage() {
             options={
               gestiona
                 ? [
-                    { value: "todos", label: `Todos los postulantes (${postulantes.data?.length ?? 0})` },
+                    { value: "todos", label: `Todos los postulantes (${voluntarios.length})` },
                     ...(ESTADOS_POSTULACION as unknown as string[]).map((e) => ({ value: e, label: `${e} (${conteo(e)})` })),
                   ]
                 : [{ value: "todos", label: "Voluntarios seleccionados de este voluntariado" }]
