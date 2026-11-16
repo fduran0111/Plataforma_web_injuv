@@ -27,8 +27,6 @@ export type Usuario = {
   created_at: string | null;
   /** `rol`: "admin" = administrador de la organización (todo), "miembro" = solo voluntariados y academia. */
   organizacion: { id: number; nombre: string | null; rol?: "admin" | "miembro" } | null;
-  /** Todas las organizaciones donde es miembro (puede pertenecer a varias). */
-  organizaciones_ids?: number[];
 };
 
 export type EstadoOportunidad = "activa" | "abierta" | "cerrada";

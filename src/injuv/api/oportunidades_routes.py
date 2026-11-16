@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import Text, and_, cast, func, or_, select, update
 
-from injuv.api.deps import CurrentUser, DbSession, OptionalUser, OwnOrganization, org_elegida
+from injuv.api.deps import CurrentUser, DbSession, MemberOrganization, OptionalUser, OwnOrganization
 from injuv.db.models import Oportunidad, Organizacion, Postulacion, Usuario
 from injuv.schemas.oportunidades import CorreoMasivoBody, EncargadosBody, EstadoOportunidadBody, FechasBody, OportunidadBody, PostularBody
 from injuv.security.rbac import is_admin, normalize_role
@@ -71,7 +71,7 @@ def ensure_can_manage(db: DbSession, op: Oportunidad, user: Usuario, solo_admin_
     org = db.get(Organizacion, op.organizacion_id)
     if is_admin(user.rol) or (org and org.id_usuario_org == user.id):
         return org
-    if org and not solo_admin_org and org.id in (user.organizaciones_ids or []) and user.id in (op.encargados_ids or []):
+    if org and not solo_admin_org and user.organizacion_afiliada == org.id and user.id in (op.encargados_ids or []):
         return org
     raise HTTPException(
         status.HTTP_403_FORBIDDEN,
@@ -87,19 +87,18 @@ def ensure_can_view(db: DbSession, op: Oportunidad, user: Usuario) -> Organizaci
     org = db.get(Organizacion, op.organizacion_id)
     if is_admin(user.rol) or (org and org.id_usuario_org == user.id):
         return org
-    if org and org.id in (user.organizaciones_ids or []) and user.id in (op.encargados_ids or []):
+    if org and user.organizacion_afiliada == org.id and user.id in (op.encargados_ids or []):
         return org
     raise HTTPException(status.HTTP_403_FORBIDDEN, "No tienes permisos sobre esta oportunidad")
 
 
 def _encargados_validos(db: DbSession, org: Organizacion | None, ids: list[int]) -> list[int]:
-    """Solo integrantes de la organización (administrador o miembros), sin repetir.
-    Un usuario puede ser miembro de varias organizaciones (`organizaciones_ids`)."""
+    """Solo integrantes de la organización (administrador o miembros), sin repetir."""
     unicos = list(dict.fromkeys(ids))
     if org is None:
         return unicos
     validos = {org.id_usuario_org} if org.id_usuario_org else set()
-    validos |= set(db.scalars(select(Usuario.id).where(Usuario.organizaciones_ids.contains([org.id]))))
+    validos |= set(db.scalars(select(Usuario.id).where(Usuario.organizacion_afiliada == org.id)))
     if any(i not in validos for i in unicos):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Los encargados deben ser integrantes de la organización")
     return unicos
@@ -173,9 +172,8 @@ def listar(
 
 
 @router.get("/mias")
-def listar_de_mi_organizacion(db: DbSession, user: CurrentUser, org_id: int | None = None) -> list[dict[str, Any]]:
+def listar_de_mi_organizacion(db: DbSession, org: MemberOrganization, user: CurrentUser) -> list[dict[str, Any]]:
     """El administrador ve todos los voluntariados de su organización; un tutor, solo los que tiene a cargo."""
-    org = org_elegida(db, user, org_id)
     lista = listar(db, estado="todas", organizacion_id=org.id, limit=500)
     if org.id_usuario_org == user.id:
         return lista
@@ -184,7 +182,7 @@ def listar_de_mi_organizacion(db: DbSession, user: CurrentUser, org_id: int | No
 
 @router.get("/tutorias")
 def listar_mis_tutorias(db: DbSession, user: CurrentUser) -> list[dict[str, Any]]:
-    """Voluntariados donde la cuenta es tutora (encargada), de cualquier organización."""
+    """Voluntariados de su organización donde la cuenta es tutora (encargada), para la web y la app."""
     counts = _count_subquery()
     stmt = (
         select(Oportunidad, Organizacion, func.coalesce(counts.c.n, 0))
@@ -192,7 +190,7 @@ def listar_mis_tutorias(db: DbSession, user: CurrentUser) -> list[dict[str, Any]
         .outerjoin(counts, counts.c.oportunidad_id == Oportunidad.id)
         .where(
             Oportunidad.encargados_ids.contains([user.id]),
-            or_(Organizacion.id_usuario_org == user.id, Oportunidad.organizacion_id.in_(user.organizaciones_ids or [-1])),
+            or_(Organizacion.id_usuario_org == user.id, Oportunidad.organizacion_id == user.organizacion_afiliada),
         )
         .order_by(Oportunidad.created_at.desc())
     )
@@ -396,7 +394,7 @@ def _encargados_detalle(db: DbSession, op: Oportunidad, org: Organizacion | None
             "nombre": (u.nombre or "").strip(),
             "apellido": (u.apellido or "").strip(),
             "email": u.email or "",
-            "miembro": bool(org and (u.id == org.id_usuario_org or org.id in (u.organizaciones_ids or []))),
+            "miembro": bool(org and (u.id == org.id_usuario_org or u.organizacion_afiliada == org.id)),
         }
         for u in (por_id[i] for i in ids if i in por_id)
     ]

@@ -8,7 +8,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import and_, func, or_, select
 
-from injuv.api.deps import CurrentUser, DbSession, OwnOrganization, org_elegida
+from injuv.api.deps import CurrentUser, DbSession, MemberOrganization, OwnOrganization
 from injuv.db.models import Oportunidad, Organizacion, Postulacion, SolicitudOrganizacion, Usuario
 from injuv.schemas.perfiles import MiembroBody, OrganizacionBody, SolicitudOrganizacionBody
 from injuv.services import files, serializers
@@ -102,25 +102,8 @@ def listar(db: DbSession, q: str | None = None, region: str | None = None) -> li
 
 
 @router.get("/mia")
-def mi_organizacion(db: DbSession, user: CurrentUser, org_id: int | None = None) -> dict[str, Any]:
-    return _detalle(db, org_elegida(db, user, org_id))
-
-
-@router.get("/mias")
-def mis_organizaciones(db: DbSession, user: CurrentUser) -> list[dict[str, Any]]:
-    """Organizaciones del usuario: la que administra y las donde es miembro (puede pertenecer a varias)."""
-    out = [
-        {"id": org.id, "nombre": org.nombre, "rol": "admin"}
-        for org in db.scalars(select(Organizacion).where(Organizacion.id_usuario_org == user.id))
-    ]
-    if user.organizaciones_ids:
-        out += [
-            {"id": org.id, "nombre": org.nombre, "rol": "miembro"}
-            for org in db.scalars(
-                select(Organizacion).where(Organizacion.id.in_(user.organizaciones_ids)).order_by(Organizacion.nombre)
-            )
-        ]
-    return out
+def mi_organizacion(db: DbSession, org: MemberOrganization) -> dict[str, Any]:
+    return _detalle(db, org)
 
 
 @router.get("/solicitudes/mia")
@@ -288,7 +271,7 @@ def _miembro(u: Usuario) -> dict[str, Any]:
 @router.get("/mia/miembros")
 def listar_miembros(db: DbSession, org: OwnOrganization) -> dict[str, Any]:
     admin = db.get(Usuario, org.id_usuario_org) if org.id_usuario_org else None
-    miembros = db.scalars(select(Usuario).where(Usuario.organizaciones_ids.contains([org.id])).order_by(Usuario.nombre))
+    miembros = db.scalars(select(Usuario).where(Usuario.organizacion_afiliada == org.id).order_by(Usuario.nombre))
     return {"admin": _miembro(admin) if admin else None, "miembros": [_miembro(u) for u in miembros]}
 
 
@@ -299,15 +282,13 @@ def agregar_miembro(body: MiembroBody, db: DbSession, org: OwnOrganization) -> d
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No hay una cuenta registrada con ese correo")
     if u.id == org.id_usuario_org:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Esa cuenta ya es la administradora de la organización")
-    if org.id in (u.organizaciones_ids or []):
+    if u.organizacion_afiliada == org.id:
         raise HTTPException(status.HTTP_409_CONFLICT, "Esa cuenta ya es miembro de la organización")
     if u.rol == "admin":
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Una cuenta de administrador INJUV no puede ser miembro")
-    if db.scalar(select(Organizacion.id).where(Organizacion.id_usuario_org == u.id)):
-        raise HTTPException(status.HTTP_409_CONFLICT, "Esa cuenta administra otra organización")
-    u.organizaciones_ids = [*(u.organizaciones_ids or []), org.id]
-    if not u.organizacion_afiliada:
-        u.organizacion_afiliada = org.id
+    if u.organizacion_afiliada or db.scalar(select(Organizacion.id).where(Organizacion.id_usuario_org == u.id)):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Esa cuenta ya pertenece a otra organización")
+    u.organizacion_afiliada = org.id
     u.rol = "organizacion"
     db.commit()
     return _miembro(u)
@@ -316,22 +297,19 @@ def agregar_miembro(body: MiembroBody, db: DbSession, org: OwnOrganization) -> d
 @router.delete("/mia/miembros/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def quitar_miembro(user_id: int, db: DbSession, org: OwnOrganization) -> None:
     u = db.get(Usuario, user_id)
-    if not u or org.id not in (u.organizaciones_ids or []):
+    if not u or u.organizacion_afiliada != org.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Ese usuario no es miembro de la organización")
-    u.organizaciones_ids = [i for i in u.organizaciones_ids if i != org.id]
-    if u.organizacion_afiliada == org.id:
-        u.organizacion_afiliada = u.organizaciones_ids[0] if u.organizaciones_ids else None
-    if u.rol == "organizacion" and not u.organizaciones_ids:
+    u.organizacion_afiliada = None
+    if u.rol == "organizacion":
         u.rol = "user"
     db.commit()
 
 
 @router.get("/mia/integrantes")
-def listar_integrantes(db: DbSession, user: CurrentUser, org_id: int | None = None) -> list[dict[str, Any]]:
-    org = org_elegida(db, user, org_id)
+def listar_integrantes(db: DbSession, org: MemberOrganization) -> list[dict[str, Any]]:
     """Administrador y miembros con datos de contacto, para elegir al encargado de un voluntariado."""
     admin = db.get(Usuario, org.id_usuario_org) if org.id_usuario_org else None
-    miembros = list(db.scalars(select(Usuario).where(Usuario.organizaciones_ids.contains([org.id])).order_by(Usuario.nombre)))
+    miembros = list(db.scalars(select(Usuario).where(Usuario.organizacion_afiliada == org.id).order_by(Usuario.nombre)))
     return [
         {
             "id": u.id,
