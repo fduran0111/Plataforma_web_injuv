@@ -15,6 +15,7 @@ from injuv.db.models import Oportunidad, Organizacion, Postulacion, Usuario
 from injuv.schemas.postulaciones import (
     AsistenciaBody,
     ConfirmacionBody,
+    CorreoPostulanteBody,
     EnviarCertificadoBody,
     EstadoPostulacionBody,
     ResenaOrgBody,
@@ -139,9 +140,10 @@ def cambiar_estado(
     user: CurrentUser,
     background: BackgroundTasks,
 ) -> dict[str, Any]:
-    p, op, _ = _managed(db, postulacion_id, user, solo_admin_org=True)
+    p, op, org = _managed(db, postulacion_id, user, solo_admin_org=True)
     if p.estado == ESTADO_DECLINADA:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "El voluntario declinó esta postulación")
+    de = mailer.remitente(org)
     anterior = p.estado
     p.estado = body.estado
     if body.estado == "No seleccionado":
@@ -152,7 +154,7 @@ def cambiar_estado(
         u = db.get(Usuario, p.usuario_id)
         if u:
             motivo = body.motivo_no_seleccion_otro or body.motivo_no_seleccion
-            background.add_task(mailer.notify_cambio_estado, u.email, u.nombre or "", op.titulo, body.estado, motivo)
+            background.add_task(mailer.notify_cambio_estado, u.email, u.nombre or "", op.titulo, body.estado, motivo, de)
     return data
 
 
@@ -264,10 +266,30 @@ def enviar_certificado(postulacion_id: int, body: EnviarCertificadoBody, db: DbS
         f"<p>Adjuntamos tu certificado de participación en <strong>{escape(op.titulo)}</strong> "
         f"({escape((org.nombre if org else '') or 'INJUV')}). ¡Gracias por tu compromiso!</p>",
         attachment=("certificado_voluntariado.pdf", pdf, "application/pdf"),
+        de=mailer.remitente(org),
     )
     if not ok:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "No se pudo enviar el correo")
     return {"message": f"Certificado enviado a {destino}"}
+
+
+@router.post("/{postulacion_id}/correo")
+def correo_postulante(postulacion_id: int, body: CorreoPostulanteBody, db: DbSession, user: CurrentUser) -> dict[str, str]:
+    """Escribe al postulante desde la plataforma (misma regla que el correo masivo)."""
+    p, op, org = _managed(db, postulacion_id, user)
+    if not is_admin(user.rol) and not (org and org.id_usuario_org == user.id):
+        # Un tutor solo escribe a los voluntarios que participan en su voluntariado.
+        if p.estado != "Seleccionado" or p.estado_confirmacion == "No confirmado":
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo puedes escribir a voluntarios seleccionados")
+    u = db.get(Usuario, p.usuario_id)
+    if not u or not u.email:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El postulante no tiene correo registrado")
+    if not mailer.is_configured():
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "El correo saliente no está configurado en el servidor")
+    org_nombre = (org.nombre if org else "") or "INJUV"
+    if not mailer.send_mensaje_masivo(u.email, u.nombre or "", body.asunto, body.mensaje, op.titulo, org_nombre, mailer.remitente(org)):
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "No se pudo enviar el correo")
+    return {"message": f"Correo enviado a {u.email}"}
 
 
 @router.get("/{postulacion_id}")

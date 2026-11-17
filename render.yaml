@@ -32,3 +32,18 @@ services:
         value: injuv-publico
       - key: R2_PUBLIC_URL
         sync: false
+      # Correo saliente (SMTP). Los valores se cargan en el panel de Render.
+      # Plan Free: Render bloquea los puertos 25/465/587 — se requiere plan pagado
+      # o un relay SMTP en otro puerto (p. ej. 2525).
+      - key: MAIL_SERVER
+        value: smtp.gmail.com
+      - key: MAIL_PORT
+        value: "587"
+      - key: MAIL_USE_TLS
+        value: "true"
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_DEFAULT_SENDER
+        sync: false

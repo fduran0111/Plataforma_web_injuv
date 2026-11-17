@@ -53,3 +53,8 @@ class VisibilidadBody(BaseModel):
 
 class EnviarCertificadoBody(BaseModel):
     email: str | None = None
+
+
+class CorreoPostulanteBody(BaseModel):
+    asunto: str = Field(min_length=1, max_length=200)
+    mensaje: str = Field(min_length=1, max_length=5000)
