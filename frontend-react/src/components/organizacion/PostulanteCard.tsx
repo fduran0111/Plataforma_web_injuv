@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronUp, Download, Eye, EyeOff, FileCheck2, Mail, MapPin, MessageCircle, Phone, Send, Star, Upload } from "lucide-react";
 import { useRef, useState } from "react";
-import { Alert, Avatar, Badge, Button, buttonClass, Card, Checkbox, Modal, Select, Spinner, Stars, Textarea } from "@/components/ui";
+import { Alert, Avatar, Badge, Button, buttonClass, Card, Checkbox, Input, Modal, Select, Spinner, Stars, Textarea } from "@/components/ui";
 import { apiFetch, downloadFile, fileUrl } from "@/lib/api";
 import { ESTADO_POSTULACION_TONE, ESTADOS_POSTULACION, MOTIVOS_NO_SELECCION } from "@/lib/constants";
 import { formatDate, formatRut } from "@/lib/format";
@@ -39,8 +39,9 @@ export default function PostulanteCard({
 }) {
   const soloLectura = modo === "lectura";
   const gestiona = modo === "gestion";
-  const asuntoCorreo = `Actualización estado de postulación: ${oportunidadTitulo}`;
-  const mailto = `mailto:${p.usuario_email}?subject=${encodeURIComponent(asuntoCorreo)}`;
+  const [correoOpen, setCorreoOpen] = useState(false);
+  const [correoAsunto, setCorreoAsunto] = useState("");
+  const [correoMensaje, setCorreoMensaje] = useState("");
   const waNumero = whatsappNumero(p.usuario_telefono);
   const whatsapp = waNumero
     ? `https://wa.me/${waNumero}?text=${encodeURIComponent(`Hola ${p.usuario_nombre}, te escribimos por tu postulación a "${oportunidadTitulo}".`)}`
@@ -132,6 +133,25 @@ export default function PostulanteCard({
     }
   };
 
+  const enviarCorreo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const res = await apiFetch<{ message: string }>(`/postulaciones/${p.id}/correo`, {
+        method: "POST",
+        body: { asunto: correoAsunto, mensaje: correoMensaje },
+      });
+      toast(res.message);
+      setCorreoOpen(false);
+      setCorreoAsunto("");
+      setCorreoMensaje("");
+    } catch (err) {
+      toast((err as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const guardarResena = () =>
     run(
       () =>
@@ -167,9 +187,9 @@ export default function PostulanteCard({
           <div>
             <p className="font-semibold text-fg">{p.usuario_nombre}</p>
             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-fg-muted">
-              <a href={mailto} className="flex items-center gap-1 hover:text-brand hover:underline" title="Enviar correo">
+              <button type="button" onClick={() => setCorreoOpen(true)} className="flex items-center gap-1 hover:text-brand hover:underline" title="Enviar correo desde la plataforma">
                 <Mail className="h-3 w-3" /> {p.usuario_email}
-              </a>
+              </button>
               {p.usuario_telefono &&
                 (whatsapp ? (
                   <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-brand hover:underline" title="Abrir WhatsApp">
@@ -200,9 +220,9 @@ export default function PostulanteCard({
             <Button size="sm" variant="secondary" onClick={toggleFicha} aria-expanded={fichaOpen}>
               {fichaOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />} Ficha
             </Button>
-            <a href={mailto} className={buttonClass("outline", "sm")} aria-label={`Enviar correo a ${p.usuario_nombre}`}>
+            <Button size="sm" variant="outline" disabled={soloLectura} onClick={() => setCorreoOpen(true)} aria-label={`Enviar correo a ${p.usuario_nombre}`}>
               <Mail className="h-4 w-4" /> Correo
-            </a>
+            </Button>
             {whatsapp && (
               <a href={whatsapp} target="_blank" rel="noopener noreferrer" className={buttonClass("outline", "sm")} aria-label={`Abrir WhatsApp con ${p.usuario_nombre}`}>
                 <MessageCircle className="h-4 w-4" /> WhatsApp
@@ -495,6 +515,31 @@ export default function PostulanteCard({
           <Textarea value={resena} onChange={(e) => setResena(e.target.value)} maxLength={2000} placeholder="Comentario sobre su desempeño (opcional)…" />
           <Checkbox label="Mostrar esta evaluación al voluntario" checked={resenaPublica} onChange={(e) => setResenaPublica(e.target.checked)} />
         </div>
+      </Modal>
+
+      <Modal
+        open={correoOpen}
+        onClose={() => setCorreoOpen(false)}
+        title={`Correo a ${p.usuario_nombre}`}
+        description={p.usuario_email}
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setCorreoOpen(false)}>
+              Cancelar
+            </Button>
+            <Button loading={busy} disabled={!correoAsunto.trim() || !correoMensaje.trim()} onClick={enviarCorreo}>
+              <Send className="h-4 w-4" /> Enviar
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={enviarCorreo} className="space-y-4">
+          <Input aria-label="Asunto" placeholder="Asunto del correo" value={correoAsunto} onChange={(e) => setCorreoAsunto(e.target.value)} maxLength={200} required />
+          <Textarea aria-label="Mensaje" placeholder="Escribe tu mensaje…" value={correoMensaje} onChange={(e) => setCorreoMensaje(e.target.value)} maxLength={5000} required />
+          <Card className="bg-page p-3 text-xs text-fg-muted">
+            El correo se envía desde la plataforma en nombre de tu organización.
+          </Card>
+        </form>
       </Modal>
     </Card>
   );

@@ -214,7 +214,7 @@ function Editor({ org, onSaved }: { org: Organizacion; onSaved: (o: Organizacion
             <Field label="Años de experiencia">
               {(id) => <Input id={id} type="number" min={0} max={200} value={form.experiencia_anios ?? ""} onChange={(e) => setForm((f) => f && { ...f, experiencia_anios: e.target.value ? Number(e.target.value) : null })} />}
             </Field>
-            <Field label="Correo de contacto">
+            <Field label="Correo de contacto" hint="Aquí te llegan las respuestas de los voluntarios a los correos que envías desde la plataforma">
               {(id) => <Input id={id} type="email" value={form.email_contacto} onChange={set("email_contacto")} />}
             </Field>
             <Field label="Teléfono de contacto">

@@ -278,8 +278,9 @@ def _avisar_cambio_fechas(
             Postulacion.usuario_id.not_in(op.encargados_ids or [-1]),
         )
     ).all()
+    de = mailer.remitente(db.get(Organizacion, op.organizacion_id))
     for email, nombre in rows:
-        background.add_task(mailer.notify_cambio_fechas, email, nombre or "", op.titulo, detalle, motivo)
+        background.add_task(mailer.notify_cambio_fechas, email, nombre or "", op.titulo, detalle, motivo, de)
 
 
 @router.patch("/{oportunidad_id}/fechas")
@@ -309,7 +310,7 @@ def cambiar_estado(
     background: BackgroundTasks,
 ) -> dict[str, Any]:
     op = get_oportunidad_or_404(db, oportunidad_id)
-    ensure_can_manage(db, op, user, solo_admin_org=True)
+    org = ensure_can_manage(db, op, user, solo_admin_org=True)
     if body.estado != "cerrada":
         total = db.scalar(
             select(func.count(Postulacion.id)).where(
@@ -322,6 +323,7 @@ def cambiar_estado(
                 status.HTTP_400_BAD_REQUEST,
                 f"No se puede reabrir: {motivo.lower()}. Edita la fecha límite o la meta primero.",
             )
+    de = mailer.remitente(org)
     anterior, op.estado = op.estado, body.estado
     db.commit()
     if body.estado == "cerrada" and anterior != "cerrada":
@@ -335,7 +337,7 @@ def cambiar_estado(
             )
         ).all()
         for email, nombre in rows:
-            background.add_task(mailer.notify_oportunidad_cerrada, email, nombre or "", op.titulo)
+            background.add_task(mailer.notify_oportunidad_cerrada, email, nombre or "", op.titulo, de)
     return _serialize(db, op)
 
 
@@ -474,7 +476,12 @@ def postular(
     db.commit()
     org = db.get(Organizacion, op.organizacion_id)
     background.add_task(
-        mailer.notify_postulacion_creada, user.email, user.nombre or "", op.titulo, (org.nombre if org else "") or ""
+        mailer.notify_postulacion_creada,
+        user.email,
+        user.nombre or "",
+        op.titulo,
+        (org.nombre if org else "") or "",
+        mailer.remitente(org),
     )
     return {"id": p.id, "estado": p.estado}
 
@@ -502,8 +509,9 @@ def correo_masivo(oportunidad_id: int, body: CorreoMasivoBody, db: DbSession, us
     if not destinatarios:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "No hay postulantes para ese filtro")
     org_nombre = (org.nombre if org else "") or "INJUV"
+    de = mailer.remitente(org)
     enviados = sum(
-        mailer.send_mensaje_masivo(email, nombre or "", body.asunto, body.mensaje, op.titulo, org_nombre)
+        mailer.send_mensaje_masivo(email, nombre or "", body.asunto, body.mensaje, op.titulo, org_nombre, de)
         for email, nombre in destinatarios
     )
     return {"enviados": enviados, "total": len(destinatarios)}

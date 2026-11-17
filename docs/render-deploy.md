@@ -60,3 +60,32 @@ La API usa R2 automáticamente cuando están las variables `R2_*` (ver `src/inju
 3. R2 → **Manage API tokens → Create API token** → permiso *Object Read & Write* para ambos buckets. Guardar *Access Key ID* y *Secret Access Key* (se muestran una sola vez).
 4. En Render → Environment: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=injuv-privado`, `R2_PUBLIC_BUCKET=injuv-publico`, `R2_PUBLIC_URL=https://pub-….r2.dev`.
 5. Migrar lo existente desde `storage/`: `.venv\Scripts\python scripts\migrar_storage_r2.py` (simula) y luego con `--subir`.
+
+## Correo saliente (SMTP)
+
+La API envía correos por SMTP (`src/injuv/services/mailer.py`): aviso de postulación recibida,
+cambio de estado, cambio de fechas, cierre de convocatoria, correo masivo de la organización
+y envío de certificados en PDF.
+
+> **Ojo:** los servicios **Free** de Render bloquean el tráfico saliente a los puertos
+> `25`, `465` y `587`. Se necesita un plan pagado (o un relay SMTP en el puerto `2525`,
+> cambiando `MAIL_PORT`).
+
+| Variable | Notas |
+|----------|--------|
+| `MAIL_SERVER` | Host SMTP (`smtp.gmail.com` para Gmail) |
+| `MAIL_PORT` | `587` con STARTTLS, o `465` con `MAIL_USE_SSL=true` |
+| `MAIL_USE_TLS` | `true` |
+| `MAIL_USERNAME` | Cuenta remitente |
+| `MAIL_PASSWORD` | En Gmail: **contraseña de aplicación** (no la normal); se genera en myaccount.google.com → Seguridad → Verificación en 2 pasos → Contraseñas de aplicaciones |
+| `MAIL_DEFAULT_SENDER` | Opcional; por defecto se usa `MAIL_USERNAME` |
+
+Todos los correos salen desde esta cuenta. Los que envía una organización aparecen como
+"Nombre de la organización vía INJUV", van firmados por ella y tienen `Reply-To` apuntando a su
+**correo de contacto** (`email_contacto`, editable en su perfil): las respuestas de los voluntarios
+le llegan directo a la organización. Si la organización no tiene correo de contacto, no se agrega `Reply-To`.
+
+Sin `MAIL_USERNAME` configurado los envíos se omiten y solo quedan en el log; el correo
+masivo y el envío de certificados responden `503`. Para comprobar el envío: subir un
+certificado y usar `POST /postulaciones/{id}/enviar-certificado`, o revisar los logs de
+Render tras una postulación.
