@@ -153,6 +153,18 @@ class Postulacion(Base):
     updated_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
+class Asistencia(Base):
+    """Asistencia de un postulante en una fecha concreta (historial diario del tutor)."""
+
+    __tablename__ = "asistencias"
+
+    postulacion_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    fecha: Mapped[date] = mapped_column(Date, primary_key=True)
+    presente: Mapped[bool] = mapped_column(Boolean, default=True)
+    registrado_por: Mapped[int | None] = mapped_column(Integer)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
 class Noticia(Base):
     __tablename__ = "noticias"
 

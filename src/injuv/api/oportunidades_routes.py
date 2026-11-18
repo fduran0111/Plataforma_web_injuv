@@ -8,8 +8,8 @@ from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, Uplo
 from sqlalchemy import Text, and_, cast, func, or_, select, update
 
 from injuv.api.deps import CurrentUser, DbSession, MemberOrganization, OptionalUser, OwnOrganization
-from injuv.db.models import Oportunidad, Organizacion, Postulacion, Usuario
-from injuv.schemas.oportunidades import CorreoMasivoBody, EncargadosBody, EstadoOportunidadBody, FechasBody, OportunidadBody, PostularBody
+from injuv.db.models import Asistencia, Oportunidad, Organizacion, Postulacion, Usuario
+from injuv.schemas.oportunidades import AsistenciaDiaBody, CorreoMasivoBody, EncargadosBody, EstadoOportunidadBody, FechasBody, OportunidadBody, PostularBody
 from injuv.security.rbac import is_admin, normalize_role
 from injuv.services import files, mailer, serializers
 from injuv.services.catalogo import ESTADO_DECLINADA, ESTADOS_OPORTUNIDAD_ABIERTOS, rechazo_participacion
@@ -366,6 +366,52 @@ def postulantes(oportunidad_id: int, db: DbSession, user: CurrentUser, estado: s
     if estado:
         stmt = stmt.where(Postulacion.estado == estado)
     return [serializers.postulacion_para_org(p, u, op) for p, u in db.execute(stmt).all()]
+
+
+@router.get("/{oportunidad_id}/asistencias")
+def asistencias_dia(oportunidad_id: int, fecha: date, db: DbSession, user: CurrentUser) -> list[dict[str, Any]]:
+    """Asistencia registrada en una fecha concreta (historial diario del voluntariado)."""
+    op = get_oportunidad_or_404(db, oportunidad_id)
+    ensure_can_view(db, op, user)
+    rows = db.scalars(
+        select(Asistencia)
+        .join(Postulacion, Postulacion.id == Asistencia.postulacion_id)
+        .where(Postulacion.oportunidad_id == op.id, Asistencia.fecha == fecha)
+    ).all()
+    return [{"postulacion_id": r.postulacion_id, "presente": r.presente} for r in rows]
+
+
+@router.put("/{oportunidad_id}/asistencias")
+def guardar_asistencias_dia(oportunidad_id: int, body: AsistenciaDiaBody, db: DbSession, user: CurrentUser) -> dict[str, Any]:
+    """Guarda la lista de un día: upsert por postulante y el flag de actividad sigue la última lista."""
+    op = get_oportunidad_or_404(db, oportunidad_id)
+    ensure_can_manage(db, op, user)
+    validos = {
+        p.id: p
+        for p in db.scalars(
+            select(Postulacion).where(
+                Postulacion.oportunidad_id == op.id,
+                Postulacion.estado == "Seleccionado",
+            )
+        ).all()
+        if not rechazo_participacion(p)
+    }
+    guardados = 0
+    for reg in body.registros:
+        p = validos.get(reg.postulacion_id)
+        if p is None:
+            continue
+        row = db.get(Asistencia, (p.id, body.fecha))
+        if row is None:
+            db.add(Asistencia(postulacion_id=p.id, fecha=body.fecha, presente=reg.presente, registrado_por=user.id, updated_at=datetime.now()))
+        else:
+            row.presente = reg.presente
+            row.registrado_por = user.id
+            row.updated_at = datetime.now()
+        p.asistencia_actividad = "SI" if reg.presente else "No"
+        guardados += 1
+    db.commit()
+    return {"fecha": body.fecha.isoformat(), "registrados": guardados}
 
 
 def _validar_respuestas(op: Oportunidad, respuestas: dict[str, str]) -> dict[str, str]:

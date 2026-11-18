@@ -149,3 +149,15 @@ class CorreoMasivoBody(BaseModel):
     asunto: str = Field(min_length=1, max_length=200)
     mensaje: str = Field(min_length=1, max_length=5000)
     filtro_estado: str = "todos"
+
+
+class AsistenciaRegistro(BaseModel):
+    postulacion_id: int
+    presente: bool = True
+
+
+class AsistenciaDiaBody(BaseModel):
+    """Lista de asistencia de un día: un registro por postulante de la lista."""
+
+    fecha: date
+    registros: list[AsistenciaRegistro] = Field(default_factory=list, max_length=500)
