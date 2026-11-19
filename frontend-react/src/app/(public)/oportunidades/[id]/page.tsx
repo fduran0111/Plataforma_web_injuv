@@ -10,16 +10,55 @@ import { Alert, Avatar, Badge, Button, Card, ErrorState, Field, LinkButton, Moda
 import { useApi } from "@/hooks/useApi";
 import { apiFetch, fileUrl } from "@/lib/api";
 import { ESTADO_POSTULACION_TONE } from "@/lib/constants";
-import { daysUntil, formatDate } from "@/lib/format";
+import { cn, daysUntil, formatDate } from "@/lib/format";
 import type { Oportunidad, PreguntaOportunidad } from "@/lib/types";
 import { useAuth } from "@/providers/AuthProvider";
 import { useToast } from "@/providers/ToastProvider";
 
-function Cifra({ label, value, i }: { label: string; value: React.ReactNode; i: number }) {
+/**
+ * Descripción con formato a partir del texto plano que escribe la organización:
+ * líneas con "-", "•" o "*" → lista; una línea corta sin punto final seguida de una lista → subtítulo;
+ * el resto, párrafos.
+ */
+function Descripcion({ texto }: { texto: string }) {
+  const lineas = texto.split(/\r?\n/).map((l) => l.trim());
+  const esItem = (l: string) => /^[-•*]\s+/.test(l);
+  const bloques: React.ReactNode[] = [];
+  for (let i = 0; i < lineas.length; i++) {
+    const l = lineas[i];
+    if (!l) continue;
+    if (esItem(l)) {
+      const items: string[] = [];
+      while (i < lineas.length && esItem(lineas[i])) items.push(lineas[i++].replace(/^[-•*]\s+/, ""));
+      i--;
+      bloques.push(
+        <ul key={i} className="space-y-2.5">
+          {items.map((it, j) => (
+            <li key={j} className="flex gap-3">
+              <span aria-hidden className="mt-[0.7em] h-1.5 w-1.5 shrink-0 rounded-full bg-ambar" />
+              <span>{it}</span>
+            </li>
+          ))}
+        </ul>,
+      );
+    } else if (l.length <= 40 && !/[.:;,]$/.test(l) && esItem(lineas.slice(i + 1).find(Boolean) ?? "")) {
+      bloques.push(
+        <h3 key={i} className="pt-2 text-h3 text-fg">
+          {l}
+        </h3>,
+      );
+    } else {
+      bloques.push(<p key={i}>{l}</p>);
+    }
+  }
+  return <div className="mt-6 max-w-[62ch] space-y-4 text-lg leading-[1.7] text-fg-secondary [overflow-wrap:anywhere]">{bloques}</div>;
+}
+
+function Cifra({ label, value, i, className }: { label: string; value: React.ReactNode; i: number; className?: string }) {
   return (
-    <div className="cifra-banda min-w-0" style={{ "--i": i } as React.CSSProperties}>
-      <p className="truncate text-sm text-papel/65">{label}</p>
-      <p className="mt-1.5 font-display text-[clamp(1.25rem,1rem+0.9vw,1.75rem)] leading-[1.1] tracking-[-0.02em] text-papel [text-wrap:balance]">{value}</p>
+    <div className={`cifra-banda min-w-0 ${className ?? ""}`} style={{ "--i": i } as React.CSSProperties}>
+      <dt className="truncate text-sm text-papel/65">{label}</dt>
+      <dd className="mt-1.5 font-display text-[clamp(1.25rem,1rem+0.9vw,1.75rem)] leading-[1.1] tracking-[-0.02em] text-papel [hyphens:auto] [text-wrap:balance]">{value}</dd>
     </div>
   );
 }
@@ -44,8 +83,9 @@ export default function OportunidadDetailPage() {
   const dias = daysUntil(op.fecha_limite_postulacion);
   const abierta = op.estado !== "cerrada" && (dias === null || dias >= 0);
   const responsable = `${op.responsable_nombre} ${op.responsable_apellido}`.trim();
+  // Comuna y región (la provincia repite casi siempre la comuna); sin duplicados.
   const ubicacion = ((op.ubicaciones ?? []).length ? op.ubicaciones : [{ comuna: op.comuna, ciudad: op.ciudad, region: op.region }])
-    .map((u) => [u.comuna, u.ciudad, u.region].filter(Boolean).join(", "))
+    .map((u) => [...new Map([u.comuna, u.region].filter(Boolean).map((p) => [String(p).trim().toLowerCase(), String(p).trim()])).values()].join(", "))
     .filter(Boolean)
     .join(" · ");
   const avance = op.meta_postulantes ? Math.min(1, op.num_postulaciones / op.meta_postulantes) : null;
@@ -122,68 +162,71 @@ export default function OportunidadDetailPage() {
             </button>
           </Entrada>
 
-          <div className="mt-10 grid gap-x-8 gap-y-10 lg:grid-cols-12 lg:items-end">
-            <Entrada retraso={0.05} className="lg:col-span-8">
-              <div className="flex flex-wrap items-center gap-2">
-                {op.tipo_de_voluntariado && <Badge tone="blue">{op.tipo_de_voluntariado}</Badge>}
-                <DeadlineBadge fecha={op.fecha_limite_postulacion} estado={op.estado} />
-              </div>
-              <h1 className="mt-5 max-w-[20ch] font-display text-[clamp(2.25rem,1.2rem+3.6vw,4.75rem)] leading-[0.98] tracking-[-0.03em] text-papel [text-wrap:balance]">
-                {op.titulo}
-              </h1>
-            </Entrada>
-            <Entrada retraso={0.12} className="lg:col-span-4 lg:justify-self-end">
-              <Link
-                href={`/organizaciones/${op.organizacion_id}`}
-                className="group inline-flex items-center gap-3 rounded-2xl bg-papel/8 py-2.5 pl-2.5 pr-5 transition-colors duration-200 hover:bg-papel/14 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ambar"
-              >
-                <Avatar name={op.organizacion_nombre} src={op.organizacion_tiene_logo ? fileUrl.logo(op.organizacion_id) : null} size={44} className="ring-papel/20" />
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-papel">{op.organizacion_nombre}</span>
-                  <span className="inline-flex items-center gap-1 text-xs text-ambar">
+          {/* Con foto: texto a la izquierda y foto a la derecha a toda la altura. Sin foto: todo a lo ancho. */}
+          <div className="mt-10 grid gap-x-12 gap-y-10 lg:grid-cols-12">
+            <div className={cn("flex flex-col gap-10 lg:justify-between", op.tiene_imagen ? "lg:col-span-7" : "lg:col-span-12")}>
+              <Entrada retraso={0.05}>
+                <div className="flex flex-wrap items-center gap-2">
+                  {op.tipo_de_voluntariado && <Badge tone="blue">{op.tipo_de_voluntariado}</Badge>}
+                  <DeadlineBadge fecha={op.fecha_limite_postulacion} estado={op.estado} />
+                </div>
+                <h1 className="mt-5 max-w-[20ch] font-display text-[clamp(2.25rem,1.2rem+3.2vw,4.25rem)] leading-[0.98] tracking-[-0.03em] text-papel [overflow-wrap:anywhere] [text-wrap:balance]">
+                  {op.titulo}
+                </h1>
+                <Link
+                  href={`/organizaciones/${op.organizacion_id}`}
+                  className="group mt-6 inline-flex max-w-full items-center gap-3 rounded-full bg-papel/8 py-1.5 pl-1.5 pr-4 transition-colors duration-200 hover:bg-papel/14 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ambar"
+                >
+                  <Avatar name={op.organizacion_nombre} src={op.organizacion_tiene_logo ? fileUrl.logo(op.organizacion_id) : null} size={36} className="ring-papel/20" />
+                  <span className="truncate text-sm font-semibold text-papel">{op.organizacion_nombre}</span>
+                  <span className="inline-flex shrink-0 items-center gap-1 text-xs text-ambar">
                     Ver organización <ArrowUpRight className="h-3 w-3 transition-transform duration-300 ease-[var(--ease-out)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                   </span>
-                </span>
-              </Link>
-            </Entrada>
-          </div>
+                </Link>
+              </Entrada>
 
-          <div className="mt-12 grid grid-cols-2 gap-x-6 gap-y-8 rounded-2xl bg-papel/6 p-6 sm:grid-cols-3 lg:mt-16 lg:grid-cols-6 lg:p-8">
-            <Cifra i={0} label="Dónde" value={ubicacion || "Por definir"} />
-            <Cifra i={1} label="Postula hasta" value={formatDate(op.fecha_limite_postulacion, "Sin fecha límite")} />
-            <Cifra
-              i={2}
-              label="Fechas"
-              value={
-                op.fecha_inicio_voluntariado
-                  ? `${formatDate(op.fecha_inicio_voluntariado)}${op.fecha_fin_voluntariado ? ` – ${formatDate(op.fecha_fin_voluntariado)}` : ""}`
-                  : "Por definir"
-              }
-            />
+              <dl
+                className={cn(
+                  "grid grid-cols-2 gap-x-6 gap-y-7 border-t border-papel/15 pt-8 sm:grid-cols-4",
+                  !op.tiene_imagen && "lg:grid-cols-8",
+                )}
+              >
+                <Cifra i={0} label="Dónde" value={ubicacion || "Por definir"} className="col-span-2" />
+                <Cifra
+                  i={1}
+                  label="Fechas"
+                  className="col-span-2"
+                  value={
+                    op.fecha_inicio_voluntariado
+                      ? `${formatDate(op.fecha_inicio_voluntariado)}${op.fecha_fin_voluntariado ? ` – ${formatDate(op.fecha_fin_voluntariado)}` : ""}`
+                      : "Por definir"
+                  }
+                />
+                <Cifra i={2} label="Postula hasta" value={formatDate(op.fecha_limite_postulacion, "Sin fecha límite")} />
             <Cifra i={3} label="Horas" value={op.horas_voluntariado ? `${op.horas_voluntariado} h` : "Por definir"} />
             <Cifra i={4} label="Cupos" value={op.cupo_maximo ?? "Sin límite"} />
             <Cifra i={5} label="Postulantes" value={`${op.num_postulaciones}${op.meta_postulantes ? ` de ${op.meta_postulantes}` : ""}`} />
+              </dl>
+            </div>
+
+            {op.tiene_imagen && (
+              <Entrada retraso={0.12} className="lg:col-span-5">
+                <div className="h-full overflow-hidden rounded-2xl ring-1 ring-papel/10">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- imagen de la API/CDN */}
+                  <img src={fileUrl.oportunidad(op.id)} alt={`Imagen de ${op.titulo}`} className="aspect-[16/10] h-full w-full object-cover lg:aspect-auto lg:min-h-[26rem]" />
+                </div>
+              </Entrada>
+            )}
           </div>
         </div>
       </section>
 
-      {/* Banner opcional de la convocatoria */}
-      {op.tiene_imagen && (
-        <Entrada className="mx-auto -mt-6 max-w-7xl px-4 sm:px-6 lg:px-8">
-          {/* eslint-disable-next-line @next/next/no-img-element -- imagen de la API/CDN */}
-          <img
-            src={fileUrl.oportunidad(op.id)}
-            alt={`Imagen de ${op.titulo}`}
-            className="h-52 w-full rounded-3xl object-cover shadow-[8px_8px_0_0_var(--color-tinta)] sm:h-72 lg:h-96"
-          />
-        </Entrada>
-      )}
 
       {/* Cuerpo: descripción a la izquierda, acción fija a la derecha */}
       <div className="mx-auto grid max-w-7xl gap-x-8 gap-y-10 px-4 py-14 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-20">
         <Entrada as="article" retraso={0.25} className="lg:col-span-7">
           <h2 className="text-h2 text-fg">Sobre este voluntariado</h2>
-          <p className="prose-text mt-6 max-w-[62ch] text-lg leading-[1.7] text-fg-secondary">{op.descripcion}</p>
+          <Descripcion texto={op.descripcion ?? ""} />
         </Entrada>
 
         <Entrada as="aside" retraso={0.32} className="space-y-6 lg:col-span-4 lg:col-start-9 lg:sticky lg:top-24 lg:self-start">

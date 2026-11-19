@@ -1,4 +1,4 @@
-import { ArrowUpRight, CalendarDays, Clock, MapPin, Users } from "lucide-react";
+import { CalendarDays, Clock, MapPin, Users } from "lucide-react";
 import Link from "next/link";
 import { Avatar, Badge } from "@/components/ui";
 import { fileUrl } from "@/lib/api";
@@ -31,13 +31,13 @@ export default function OportunidadCard({ op, postulado }: { op: Oportunidad; po
           {op.tipo_de_voluntariado ? <Badge tone="blue">{op.tipo_de_voluntariado}</Badge> : <span />}
           {postulado ? <Badge tone="violet">Ya postulaste</Badge> : <DeadlineBadge fecha={op.fecha_limite_postulacion} estado={op.estado} />}
         </div>
-        <h3 className="mt-4 line-clamp-2 text-h3 text-fg transition-colors duration-200 group-hover:text-brand">{op.titulo}</h3>
-        <p className="mt-2 line-clamp-3 flex-1 text-sm leading-relaxed text-fg-muted">{op.descripcion}</p>
+        <h3 className="mt-4 line-clamp-2 [overflow-wrap:anywhere] text-h3 text-fg transition-colors duration-200 group-hover:text-brand">{op.titulo}</h3>
+        <p className="mt-2 line-clamp-3 flex-1 [overflow-wrap:anywhere] text-sm leading-relaxed text-fg-muted">{op.descripcion}</p>
         <div className="mt-4 flex items-center gap-2.5">
           <Avatar name={op.organizacion_nombre || "Org"} src={op.organizacion_tiene_logo ? fileUrl.logo(op.organizacion_id) : null} size={28} />
           <span className="truncate text-sm font-medium text-fg-secondary">{op.organizacion_nombre}</span>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2 rounded-xl bg-papel/70 p-3 pr-14 text-xs text-fg-muted">
+        <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2 rounded-xl bg-papel/70 p-3 text-xs text-fg-muted">
           <span className="flex items-center gap-1.5 truncate">
             <MapPin className="h-3.5 w-3.5 shrink-0" />
             {ubicacion || "Sin ubicación"}
@@ -58,12 +58,6 @@ export default function OportunidadCard({ op, postulado }: { op: Oportunidad; po
           ) : null}
         </div>
       </Link>
-      <span
-        aria-hidden
-        className="absolute bottom-4 right-4 flex h-10 w-10 items-center justify-center rounded-full border-[1.5px] border-tinta/15 bg-surface text-tinta transition-[background-color,color,transform] duration-300 ease-[cubic-bezier(0.23,1.05,0.32,1)] group-hover:rotate-45 group-hover:border-brand group-hover:bg-brand group-hover:text-white"
-      >
-        <ArrowUpRight className="h-4 w-4" />
-      </span>
     </div>
   );
 }

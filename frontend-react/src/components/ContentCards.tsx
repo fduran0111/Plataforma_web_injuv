@@ -1,4 +1,4 @@
-import { Download, FileText, Newspaper, PlayCircle } from "lucide-react";
+import { ArrowUpRight, Download, FileText, Newspaper, PlayCircle } from "lucide-react";
 import Link from "next/link";
 import { Avatar, Badge, Recorte, Stars } from "@/components/ui";
 import { fileUrl } from "@/lib/api";
@@ -10,29 +10,37 @@ export function NoticiaCard({ n }: { n: Noticia }) {
   return (
     <div
       id={`noticia-${n.id}`}
-      className="group relative flex h-full flex-col overflow-clip rounded-2xl bg-surface ring-1 ring-tinta/10 transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] focus-within:ring-2 focus-within:ring-brand hover:-translate-y-1.5 hover:shadow-[0_24px_48px_-24px_rgb(15_27_45/0.35)]"
+      className="group tarjeta-crece relative flex h-full flex-col overflow-clip rounded-2xl bg-surface ring-1 ring-tinta/10 focus-within:ring-2 focus-within:ring-brand"
     >
       <Link href={`/noticias/${n.id}`} className="flex flex-1 flex-col focus-visible:outline-none">
-        <div className="persiana relative aspect-[16/9] overflow-clip bg-papel-strong">
-          {n.imagen ? (
-            // eslint-disable-next-line @next/next/no-img-element -- imagen servida por la API
-            <img
-              src={fileUrl.noticia(n.imagen)}
-              alt=""
-              className="persiana-zoom h-full w-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:scale-[1.04]"
-            />
-          ) : (
-            <div className="persiana-zoom flex h-full items-center justify-center text-tinta/30">
-              <Newspaper className="h-12 w-12" />
-            </div>
-          )}
+        <div className="persiana relative aspect-[4/3] overflow-clip bg-papel-strong">
+          {/* El zoom de entrada (scroll) y el del hover van en capas distintas para no pisarse */}
+          <div className="persiana-zoom absolute inset-0">
+            {n.imagen ? (
+              // eslint-disable-next-line @next/next/no-img-element -- imagen servida por la API
+              <img src={fileUrl.noticia(n.imagen)} alt="" className="noticia-imagen h-full w-full object-cover" />
+            ) : (
+              <div className="noticia-imagen flex h-full items-center justify-center text-tinta/30">
+                <Newspaper className="h-12 w-12" />
+              </div>
+            )}
+          </div>
+          <span className="absolute left-3 top-3 rounded-full bg-papel/95 px-2.5 py-1 text-xs font-semibold text-tinta tabular-nums shadow-sm">
+            {formatDate(n.fecha_publicacion)}
+          </span>
         </div>
         <div className="flex flex-1 flex-col p-5">
-          <p className="inline-flex w-fit items-center rounded-full bg-papel px-2.5 py-1 text-xs font-medium text-fg-muted tabular-nums">
-            {formatDate(n.fecha_publicacion)}
-          </p>
-          <h3 className="mt-2 line-clamp-2 text-h3 text-fg transition-colors duration-200 group-hover:text-brand">{n.titulo}</h3>
-          <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-fg-muted">{n.resumen || n.contenido}</p>
+          <h3 className="line-clamp-2 text-h3 text-fg [overflow-wrap:anywhere] transition-colors duration-200 group-hover:text-brand">{n.titulo}</h3>
+          <p className="mt-2 line-clamp-3 flex-1 text-sm leading-relaxed text-fg-muted [overflow-wrap:anywhere]">{n.resumen || n.contenido}</p>
+          <span className="mt-5 flex items-center justify-between border-t border-tinta/10 pt-4 text-sm font-semibold text-tinta">
+            Leer noticia
+            <span
+              aria-hidden
+              className="flex h-9 w-9 items-center justify-center rounded-full border-[1.5px] border-tinta/15 transition-[background-color,border-color,color,transform] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:rotate-45 group-hover:border-brand group-hover:bg-brand group-hover:text-white"
+            >
+              <ArrowUpRight className="h-4 w-4" />
+            </span>
+          </span>
         </div>
       </Link>
     </div>
