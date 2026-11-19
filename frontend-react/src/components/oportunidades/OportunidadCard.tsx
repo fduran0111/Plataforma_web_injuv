@@ -24,7 +24,7 @@ export default function OportunidadCard({ op, postulado }: { op: Oportunidad; po
   return (
     <div
       id={`op-${op.id}`}
-      className="group relative flex h-full flex-col rounded-2xl bg-surface ring-1 ring-tinta/10 transition-[transform,box-shadow] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] focus-within:ring-2 focus-within:ring-brand hover:-translate-y-1.5 hover:shadow-[0_24px_48px_-24px_rgb(15_27_45/0.35)]"
+      className="group tarjeta-crece relative flex h-full flex-col rounded-2xl bg-surface ring-1 ring-tinta/10 focus-within:ring-2 focus-within:ring-brand"
     >
       <Link href={`/oportunidades/${op.id}`} className="flex flex-1 flex-col p-5 focus-visible:outline-none">
         <div className="flex items-start justify-between gap-3">
@@ -60,7 +60,7 @@ export default function OportunidadCard({ op, postulado }: { op: Oportunidad; po
       </Link>
       <span
         aria-hidden
-        className="absolute bottom-4 right-4 flex h-10 w-10 items-center justify-center rounded-full border-[1.5px] border-tinta/15 bg-surface text-tinta transition-[background-color,color,transform] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:rotate-45 group-hover:border-brand group-hover:bg-brand group-hover:text-white"
+        className="absolute bottom-4 right-4 flex h-10 w-10 items-center justify-center rounded-full border-[1.5px] border-tinta/15 bg-surface text-tinta transition-[background-color,color,transform] duration-300 ease-[cubic-bezier(0.23,1.05,0.32,1)] group-hover:rotate-45 group-hover:border-brand group-hover:bg-brand group-hover:text-white"
       >
         <ArrowUpRight className="h-4 w-4" />
       </span>

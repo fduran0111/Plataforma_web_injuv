@@ -292,21 +292,21 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
             }
           />
         </div>
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 lg:mr-[min(0px,40rem-50vw)]">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Stagger stagger={0.07}>
             <div
               ref={filaRef}
               onScroll={refrescarFlechas}
-              className="flex snap-x snap-mandatory gap-5 overflow-x-auto scroll-pl-4 pb-6 lg:scroll-pl-8 [scrollbar-color:var(--tinta)_transparent]"
+              className="fila-tarjetas flex snap-x snap-mandatory gap-5 overflow-x-auto scroll-pl-4 -mx-2 px-2 -mt-4 pt-4 pb-6 [scrollbar-width:none] lg:scroll-pl-8 [&::-webkit-scrollbar]:hidden"
             >
               {oportunidades.loading && !oportunidades.data
                 ? Array.from({ length: 3 }, (_, i) => (
-                    <StaggerItem key={i} className="w-[85vw] shrink-0 snap-start sm:w-[400px]">
+                    <StaggerItem key={i} className="w-[85vw] shrink-0 snap-start sm:w-[400px] lg:w-[calc((100%-2.5rem)/3)]">
                       <OportunidadCardSkeleton />
                     </StaggerItem>
                   ))
                 : (oportunidades.data ?? []).map((op) => (
-                    <StaggerItem key={op.id} className="w-[85vw] shrink-0 snap-start sm:w-[400px]">
+                    <StaggerItem key={op.id} className="w-[85vw] shrink-0 snap-start sm:w-[400px] lg:w-[calc((100%-2.5rem)/3)]">
                       <OportunidadCard op={op} postulado={postuladas.has(op.id)} />
                     </StaggerItem>
                   ))}
