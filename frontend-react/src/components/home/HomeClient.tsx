@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { animate, type AnimationPlaybackControls } from "motion";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { NoticiaCard, ResenaCard } from "@/components/ContentCards";
@@ -128,11 +129,96 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
     setPuedeAnt(el.scrollLeft > 8);
     setPuedeSig(el.scrollLeft < el.scrollWidth - el.clientWidth - 8);
   };
+  const animFila = useRef<AnimationPlaybackControls | null>(null);
+  /** Avanza una "página" de tarjetas visibles, alineando exacto al borde de la tarjeta destino. */
   const moverFila = (dir: 1 | -1) => {
     const el = filaRef.current;
-    const card = el?.querySelector<HTMLElement>("a, .animate-pulse");
     if (!el) return;
-    el.scrollBy({ left: dir * ((card?.offsetWidth ?? 400) + 20), behavior: "smooth" });
+    const items = [...el.children] as HTMLElement[];
+    if (!items.length) return;
+    const pad = parseFloat(getComputedStyle(el).paddingLeft) || 0;
+    const paso = items.length > 1 ? items[1].offsetLeft - items[0].offsetLeft : items[0].offsetWidth;
+    const visibles = Math.max(1, Math.floor((el.clientWidth - pad * 2 + 20) / paso));
+    const actual = Math.round(el.scrollLeft / paso);
+    const destino = Math.min(Math.max(actual + dir * visibles, 0), Math.max(items.length - visibles, 0));
+    const max = el.scrollWidth - el.clientWidth;
+    const objetivo = Math.min(items[destino].offsetLeft - items[0].offsetLeft, max);
+    const reducir = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    animFila.current?.stop();
+    el.style.scrollSnapType = "none";
+    animFila.current = animate(el.scrollLeft, objetivo, {
+      duration: reducir ? 0 : 0.7,
+      ease: [0.77, 0, 0.175, 1],
+      onUpdate: (v) => (el.scrollLeft = v),
+      onComplete: () => {
+        el.style.scrollSnapType = "";
+        refrescarFlechas();
+      },
+    });
+    if (reducir) return;
+    items.slice(destino, destino + visibles).forEach((it, i) =>
+      it.animate(
+        [
+          { transform: `translateX(${dir * 48}px)`, opacity: 0.35 },
+          { transform: "translateX(0)", opacity: 1 },
+        ],
+        { duration: 650, delay: 120 + i * 70, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "backwards" },
+      ),
+    );
+  };
+
+  /** Arrastre con mouse (en táctil ya desliza nativo): sigue al puntero y al soltar se asienta en la tarjeta más cercana. */
+  const arrastre = useRef<{ x: number; scroll: number; t: number; v: number; movio: boolean } | null>(null);
+  const alSoltarClick = useRef(false);
+  const empezarArrastre = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== "mouse" || e.button !== 0) return;
+    const el = filaRef.current;
+    if (!el) return;
+    animFila.current?.stop();
+    arrastre.current = { x: e.clientX, scroll: el.scrollLeft, t: e.timeStamp, v: 0, movio: false };
+  };
+  const moverArrastre = (e: React.PointerEvent<HTMLDivElement>) => {
+    const a = arrastre.current;
+    const el = filaRef.current;
+    if (!a || !el) return;
+    const dx = e.clientX - a.x;
+    if (!a.movio && Math.abs(dx) < 6) return;
+    if (!a.movio) {
+      a.movio = true;
+      el.setPointerCapture(e.pointerId);
+      el.style.scrollSnapType = "none";
+      el.style.cursor = "grabbing";
+    }
+    const anterior = el.scrollLeft;
+    el.scrollLeft = a.scroll - dx;
+    const dt = Math.max(e.timeStamp - a.t, 1);
+    a.v = (el.scrollLeft - anterior) / dt;
+    a.t = e.timeStamp;
+  };
+  const terminarArrastre = () => {
+    const a = arrastre.current;
+    const el = filaRef.current;
+    arrastre.current = null;
+    if (!a?.movio || !el) return;
+    alSoltarClick.current = true;
+    setTimeout(() => (alSoltarClick.current = false), 0);
+    el.style.cursor = "";
+    const items = [...el.children] as HTMLElement[];
+    const paso = items.length > 1 ? items[1].offsetLeft - items[0].offsetLeft : el.clientWidth;
+    const proyectado = el.scrollLeft + a.v * 180;
+    const max = el.scrollWidth - el.clientWidth;
+    const objetivo = Math.min(Math.max(Math.round(proyectado / paso) * paso, 0), max);
+    const reducir = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    animFila.current = animate(el.scrollLeft, objetivo, {
+      duration: reducir ? 0 : 0.45,
+      ease: [0.23, 1, 0.32, 1],
+      onUpdate: (v) => (el.scrollLeft = v),
+      onComplete: () => {
+        el.style.scrollSnapType = "";
+        refrescarFlechas();
+      },
+    });
   };
 
   function buscar(e: React.FormEvent) {
@@ -293,11 +379,22 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
           />
         </div>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <Stagger stagger={0.07}>
+          <Stagger key={oportunidades.data ? "datos" : "cargando"} stagger={0.07}>
             <div
               ref={filaRef}
               onScroll={refrescarFlechas}
-              className="fila-tarjetas flex snap-x snap-mandatory gap-5 overflow-x-auto scroll-pl-4 -mx-2 px-2 -mt-4 pt-4 pb-6 [scrollbar-width:none] lg:scroll-pl-8 [&::-webkit-scrollbar]:hidden"
+              onPointerDown={empezarArrastre}
+              onPointerMove={moverArrastre}
+              onPointerUp={terminarArrastre}
+              onPointerCancel={terminarArrastre}
+              onDragStart={(e) => e.preventDefault()}
+              onClickCapture={(e) => {
+                if (!alSoltarClick.current) return;
+                alSoltarClick.current = false;
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              className="fila-tarjetas relative flex cursor-grab select-none snap-x snap-mandatory gap-5 overflow-x-auto scroll-pl-2 -mx-2 px-2 -mt-4 pt-4 pb-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               {oportunidades.loading && !oportunidades.data
                 ? Array.from({ length: 3 }, (_, i) => (
@@ -360,10 +457,10 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
       </section>
 
       {/* Áreas: mosaico de causas con ícono */}
-      <section className="bg-papel-strong py-24 lg:py-32">
+      <section className="bg-papel-strong py-20 lg:py-14">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <SectionTitle eyebrow="Explora por área" title="¿Qué causa te mueve?" highlight="te mueve" />
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:gap-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {AREAS_VOLUNTARIADO.map((a, i) => {
               const ultima = i === AREAS_VOLUNTARIADO.length - 1;
               return (
@@ -431,9 +528,9 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
               </LinkButton>
             }
           />
-          <Stagger className="grid gap-5 lg:grid-cols-12">
-            {noticias.data.map((n, i) => (
-              <StaggerItem key={n.id} className={cn("h-full", i === 0 ? "lg:col-span-7 lg:row-span-2" : "lg:col-span-5")}>
+          <Stagger className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6" stagger={0.08}>
+            {noticias.data.map((n) => (
+              <StaggerItem key={n.id} className="h-full">
                 <NoticiaCard n={n} />
               </StaggerItem>
             ))}
@@ -441,8 +538,10 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
         </section>
       )}
 
-      {/* Recursos + organizaciones */}
-      <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8 lg:py-32">
+      {/* Recursos + organizaciones: franja beige (como "¿Qué causa te mueve?") para separarla de las noticias */}
+      <section className="bg-papel-strong">
+        <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8 lg:py-32">
+        <SectionTitle eyebrow="Recursos" title="Aprende y súmate" highlight="súmate" />
         <Stagger className="grid gap-5 md:grid-cols-3 lg:gap-8" stagger={0}>
           {(
             [
@@ -484,6 +583,7 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
             <RecursoCard key={r.href} r={r} index={i} />
           ))}
         </Stagger>
+        </div>
       </section>
     </>
   );

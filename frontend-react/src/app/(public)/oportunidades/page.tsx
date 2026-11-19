@@ -117,7 +117,7 @@ function OportunidadesContent() {
               )}
             </div>
 
-            <Stagger key={query.toString()} className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" stagger={0.05}>
+            <Stagger key={`${query.toString()}-${data ? "datos" : "cargando"}`} className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" stagger={0.05}>
               {loading && !data
                 ? Array.from({ length: 6 }, (_, i) => (
                     <StaggerItem key={i}>

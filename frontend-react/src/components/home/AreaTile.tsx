@@ -29,19 +29,19 @@ function Contenido({ area, Icon, tono, ancho }: { area: string; Icon: LucideIcon
     <>
       <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         <Icon
-          className={cn("area-marca absolute", ancho ? "-bottom-12 -right-6 h-56 w-56" : "-bottom-8 -right-8 h-36 w-36", t.marca)}
+          className={cn("area-marca absolute", ancho ? "-bottom-10 -right-4 h-40 w-40" : "-bottom-6 -right-6 h-28 w-28", t.marca)}
           strokeWidth={1.25}
         />
       </span>
       <span className="relative flex items-start justify-between">
         <m.span
-          className={cn("flex h-12 w-12 items-center justify-center rounded-full", t.chip)}
+          className={cn("flex h-10 w-10 items-center justify-center rounded-full", t.chip)}
           variants={{ hidden: { scale: 1, rotate: 0 }, show: { scale: 1, rotate: 0, transition: SPRING }, hover: { scale: 1.14, rotate: -10, transition: SPRING } }}
         >
           <Icon className="h-5 w-5" aria-hidden />
         </m.span>
         <m.span
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-current/25"
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-current/25"
           variants={{ hidden: { x: -8, opacity: 0 }, show: { x: -8, opacity: 0 }, hover: { x: 0, opacity: 1, transition: { duration: 0.25, ease: EASE } } }}
         >
           <ArrowRight className="h-4 w-4" aria-hidden />
@@ -50,7 +50,7 @@ function Contenido({ area, Icon, tono, ancho }: { area: string; Icon: LucideIcon
       <span
         className={cn(
           "relative font-display leading-[1.05] tracking-[-0.02em]",
-          ancho ? "max-w-[12ch] text-[clamp(1.75rem,1.2rem+1.6vw,2.75rem)]" : "text-[clamp(1.125rem,0.95rem+0.5vw,1.5rem)]",
+          ancho ? "max-w-[14ch] text-[clamp(1.5rem,1.1rem+1.1vw,2.125rem)]" : "text-[clamp(1.0625rem,0.95rem+0.35vw,1.3125rem)]",
         )}
       >
         {area}
@@ -90,7 +90,7 @@ export default function AreaTile({
     el.style.setProperty("--y", `${e.clientY - r.top}px`);
   };
   const ola = (index % COLS) + Math.floor(index / COLS);
-  const caja = "flex flex-col justify-between gap-8 p-5 lg:p-6";
+  const caja = "flex flex-col justify-between gap-4 p-4 lg:p-5";
 
   return (
     <m.div
@@ -112,7 +112,7 @@ export default function AreaTile({
         onPointerEnter={origen}
         onPointerLeave={origen}
         className={cn(
-          "area-tile relative isolate h-full min-h-[10rem] overflow-hidden rounded-2xl shadow-[0_1px_2px_rgb(15_27_45/0.06)] transition-shadow duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand lg:min-h-[12rem]",
+          "area-tile relative isolate h-full min-h-[8rem] overflow-hidden rounded-2xl shadow-[0_1px_2px_rgb(15_27_45/0.06)] transition-shadow duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand lg:min-h-[7rem]",
           caja,
           TONOS[tono].fondo,
         )}

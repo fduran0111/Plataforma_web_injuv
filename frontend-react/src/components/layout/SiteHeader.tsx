@@ -81,7 +81,8 @@ export default function SiteHeader() {
                   aria-hidden
                   className={cn(
                     "absolute inset-x-3 -bottom-px h-[3px] origin-left rounded-full transition-transform duration-200 ease-[var(--ease-out)]",
-                    active ? "scale-x-100 bg-ambar" : "scale-x-0 bg-tinta group-hover:scale-x-100",
+                    l.raya,
+                    active ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100",
                   )}
                 />
               </Link>
