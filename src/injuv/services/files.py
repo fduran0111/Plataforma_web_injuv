@@ -36,6 +36,7 @@ MB = 1024 * 1024
 PUBLIC_FOLDERS = {
     "perfiles_usuarios",
     "logos_organizaciones",
+    "banners_organizaciones",
     "imagenes_noticias",
     "portada_fotos",
     "imagenes_oportunidades",

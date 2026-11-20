@@ -1,16 +1,17 @@
 "use client";
 
-import { Award, CalendarDays, ExternalLink, Globe, Mail, MapPin, MessageSquareQuote, Phone, Users } from "lucide-react";
+import { Award, CalendarDays, ExternalLink, Globe, Mail, MapPin, Phone, SlidersHorizontal, Users } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Stagger, StaggerItem } from "@/components/home/Stagger";
 import OportunidadCard from "@/components/oportunidades/OportunidadCard";
 import Entrada from "@/components/public/Entrada";
-import { Avatar, Card, EmptyState, ErrorState, Spinner, Stars, Tabs } from "@/components/ui";
+import { Avatar, Card, EmptyState, ErrorState, Spinner, Stars } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { useOportunidadesPostuladas } from "@/hooks/useMisPostulaciones";
 import { fileUrl } from "@/lib/api";
 import { formatDate } from "@/lib/format";
+import { useReducedMotion } from "@/lib/motion";
 import type { Oportunidad, Organizacion, ResenaOrganizacion } from "@/lib/types";
 
 function Cifra({ label, value, i }: { label: string; value: React.ReactNode; i: number }) {
@@ -22,13 +23,24 @@ function Cifra({ label, value, i }: { label: string; value: React.ReactNode; i: 
   );
 }
 
+const POR_PAGINA = 4;
+type FiltroEstado = "abiertos" | "anteriores" | "todos";
+
 export default function OrganizacionPage() {
   const { id } = useParams<{ id: string }>();
   const org = useApi<Organizacion>(`/organizaciones/${id}`);
   const ops = useApi<Oportunidad[]>(`/oportunidades?organizacion_id=${id}&estado=todas`);
   const resenas = useApi<ResenaOrganizacion[]>(`/organizaciones/${id}/resenas`);
   const postuladas = useOportunidadesPostuladas();
-  const [tab, setTab] = useState<"voluntariados" | "resenas">("voluntariados");
+  const [estadoFiltro, setEstadoFiltro] = useState<FiltroEstado | null>(null);
+  const [area, setArea] = useState<string | null>(null);
+  const [visibles, setVisibles] = useState(POR_PAGINA);
+  const [verFiltros, setVerFiltros] = useState(false);
+  function filtrar(e: FiltroEstado, a: string | null) {
+    setEstadoFiltro(e);
+    setArea(a);
+    setVisibles(POR_PAGINA);
+  }
 
   if (org.loading && !org.data) return <Spinner className="py-32" />;
   if (org.error || !org.data)
@@ -40,14 +52,28 @@ export default function OrganizacionPage() {
   const o = org.data;
   const abiertas = (ops.data ?? []).filter((op) => op.estado !== "cerrada");
   const cerradas = (ops.data ?? []).filter((op) => op.estado === "cerrada");
+  const estadoInicial: FiltroEstado = abiertas.length || !cerradas.length ? "abiertos" : "anteriores";
+  const estadoActivo: FiltroEstado = estadoFiltro ?? estadoInicial;
+  const filtrosActivos = Number(estadoActivo !== estadoInicial) + Number(!!area);
+  const porEstado = estadoActivo === "abiertos" ? abiertas : estadoActivo === "anteriores" ? cerradas : (ops.data ?? []);
+  const areas = [...new Set(porEstado.map((op) => op.tipo_de_voluntariado).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
+  const filtradas = area ? porEstado.filter((op) => op.tipo_de_voluntariado === area) : porEstado;
   const ubicacion = [o.comuna, o.ciudad, o.region].filter(Boolean).join(", ");
   const meta = [o.tipo_org, o.area_trabajo].filter(Boolean).join(" · ");
 
   return (
     <>
       {/* Banda de tinta: identidad y cifras */}
-      <section className="bg-tinta text-papel">
-        <div className="mx-auto max-w-7xl px-4 pb-14 pt-10 sm:px-6 lg:px-8 lg:pb-20 lg:pt-14">
+      <section className="relative isolate overflow-hidden bg-tinta text-papel">
+        {o.tiene_banner && (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={fileUrl.banner(o.id, o.banner_version)} alt="" className="portada-foto absolute inset-0 -z-10 h-full w-full object-cover" />
+            <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-tinta via-tinta/75 to-tinta/25" />
+            <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-r from-tinta/70 to-transparent" />
+          </>
+        )}
+        <div className={`mx-auto max-w-7xl px-4 pb-14 sm:px-6 lg:px-8 lg:pb-20 ${o.tiene_banner ? "pt-40 sm:pt-56 lg:pt-72" : "pt-10 lg:pt-14"}`}>
           <div className="grid gap-x-8 gap-y-12 lg:grid-cols-12 lg:items-end">
             <Entrada className="lg:col-span-7">
               <Avatar name={o.nombre} src={o.tiene_logo ? fileUrl.logo(o.id, o.logo_version) : null} size={144} className="ring-4 ring-papel/15" />
@@ -76,8 +102,8 @@ export default function OrganizacionPage() {
         </div>
       </section>
 
-      <div className="mx-auto grid max-w-7xl gap-x-8 gap-y-12 px-4 py-14 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-20">
-        <div className="space-y-12 lg:col-span-7">
+      <div className="mx-auto grid max-w-7xl gap-x-10 gap-y-12 px-4 py-14 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-20">
+        <div className="min-w-0 space-y-14 lg:col-span-8">
           <Entrada as="section" retraso={0.2}>
             <h2 className="text-h2 text-fg">Sobre la organización</h2>
             <p className="prose-text mt-5 max-w-[62ch] text-lg leading-[1.7] text-fg-secondary">
@@ -86,82 +112,110 @@ export default function OrganizacionPage() {
           </Entrada>
 
           <Entrada as="section" retraso={0.3}>
-            <Tabs
-              value={tab}
-              onChange={setTab}
-              tabs={[
-                { value: "voluntariados", label: "Voluntariados", count: ops.data?.length },
-                { value: "resenas", label: "Reseñas", count: resenas.data?.length },
-              ]}
-            />
-
-            <div className="mt-6">
-              {tab === "voluntariados" &&
-                (ops.loading && !ops.data ? (
-                  <Spinner />
-                ) : !ops.data?.length ? (
-                  <EmptyState icon={Users} title="Aún no publica voluntariados" />
-                ) : (
-                  <div className="space-y-10">
-                    {!!abiertas.length && (
-                      <Stagger className="grid gap-5 sm:grid-cols-2" stagger={0.06}>
-                        {abiertas.map((op) => (
-                          <StaggerItem key={op.id} className="h-full">
-                            <OportunidadCard op={op} postulado={postuladas.has(op.id)} />
-                          </StaggerItem>
-                        ))}
-                      </Stagger>
+            <div className="flex items-end justify-between gap-4 border-b border-tinta/15 pb-4">
+              <div>
+                <h2 className="text-h2 text-fg">Voluntariados</h2>
+                {!!ops.data?.length && (
+                  <p className="mt-1 text-sm text-fg-muted">
+                    {filtradas.length} de {ops.data.length} {ops.data.length === 1 ? "publicado" : "publicados"}
+                  </p>
+                )}
+              </div>
+              {!!ops.data?.length && (
+                <button
+                  type="button"
+                  className="ficha"
+                  aria-expanded={verFiltros}
+                  aria-controls="filtros-voluntariados"
+                  aria-pressed={verFiltros}
+                  onClick={() => setVerFiltros((v) => !v)}
+                >
+                  <SlidersHorizontal className="h-4 w-4" /> Filtros
+                  {filtrosActivos > 0 && (
+                    <span className="grid h-5 min-w-5 place-items-center rounded-full bg-ambar px-1 text-xs tabular-nums text-tinta">{filtrosActivos}</span>
+                  )}
+                </button>
+              )}
+            </div>
+            {ops.loading && !ops.data ? (
+              <Spinner className="mt-8" />
+            ) : !ops.data?.length ? (
+              <div className="mt-8">
+                <EmptyState icon={Users} title="Aún no publica voluntariados" />
+              </div>
+            ) : (
+              <>
+                {verFiltros && (
+                <div id="filtros-voluntariados" className="panel-filtros mt-6 space-y-4 rounded-2xl bg-surface p-5 ring-1 ring-tinta/10">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-fg">Estado</p>
+                    {filtrosActivos > 0 && (
+                      <button type="button" onClick={() => filtrar(estadoInicial, null)} className="text-sm font-semibold text-brand underline-offset-4 hover:underline">
+                        Limpiar filtros
+                      </button>
                     )}
-                    {!!cerradas.length && (
-                      <div>
-                        <h3 className="text-h3 text-fg-muted">Voluntariados anteriores</h3>
-                        <Stagger className="mt-4 grid gap-5 opacity-80 sm:grid-cols-2" stagger={0.06}>
-                          {cerradas.map((op) => (
-                            <StaggerItem key={op.id} className="h-full">
-                              <OportunidadCard op={op} />
+                  </div>
+                  <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por estado">
+                    {(
+                      [
+                        ["abiertos", "Abiertos", abiertas.length],
+                        ["anteriores", "Anteriores", cerradas.length],
+                        ["todos", "Todos", ops.data.length],
+                      ] as const
+                    ).map(([v, label, n]) => (
+                      <button key={v} type="button" className="ficha disabled:pointer-events-none disabled:opacity-40" disabled={n === 0} aria-pressed={estadoActivo === v} onClick={() => filtrar(v, null)}>
+                        {label} <span className="tabular-nums opacity-60">{n}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {areas.length > 1 && (
+                    <>
+                    <p className="text-sm font-semibold text-fg">Área</p>
+                    <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por área">
+                      <button type="button" className="ficha h-8 text-xs" aria-pressed={!area} onClick={() => filtrar(estadoActivo, null)}>
+                        Todas las áreas
+                      </button>
+                      {areas.map((a) => (
+                        <button key={a} type="button" className="ficha h-8 text-xs" aria-pressed={area === a} onClick={() => filtrar(estadoActivo, a)}>
+                          {a}
+                        </button>
+                      ))}
+                    </div>
+                    </>
+                  )}
+                </div>
+                )}
+
+                <div className="mt-8">
+                  {!filtradas.length ? (
+                    <EmptyState icon={Users} title="No hay voluntariados con estos filtros" />
+                  ) : (
+                    <div key={`${estadoActivo}-${area}-${filtradas.length}`} className="space-y-6">
+                      {Array.from({ length: Math.ceil(Math.min(visibles, filtradas.length) / POR_PAGINA) }, (_, t) => (
+                        <Stagger key={t} className="grid gap-6 sm:grid-cols-2" stagger={0.06}>
+                          {filtradas.slice(t * POR_PAGINA, Math.min((t + 1) * POR_PAGINA, visibles)).map((op) => (
+                            <StaggerItem key={op.id} className={`h-full ${op.estado === "cerrada" ? "opacity-80" : ""}`}>
+                              <OportunidadCard op={op} postulado={postuladas.has(op.id)} />
                             </StaggerItem>
                           ))}
                         </Stagger>
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-              {tab === "resenas" &&
-                (!resenas.data?.length ? (
-                  <EmptyState icon={MessageSquareQuote} title="Todavía no hay reseñas públicas" />
-                ) : (
-                  <Stagger className="grid gap-5 sm:grid-cols-2" stagger={0.06}>
-                    {resenas.data.map((r) => (
-                      <StaggerItem key={r.postulacion_id} className="h-full">
-                        <figure className="flex h-full flex-col rounded-2xl bg-surface p-6 ring-1 ring-tinta/10">
-                          <div className="flex items-center justify-between gap-3">
-                            <Stars value={r.calificacion} />
-                            <span aria-hidden className="font-display text-4xl leading-none text-ambar">
-                              “
-                            </span>
-                          </div>
-                          {r.resena && (
-                            <blockquote className="mt-3 flex-1 font-display text-lg leading-snug text-fg [font-variation-settings:'wght'_480,'opsz'_18]">
-                              “{r.resena}”
-                            </blockquote>
-                          )}
-                          <figcaption className="mt-5 min-w-0 border-t border-tinta/15 pt-4">
-                            <p className="truncate text-sm font-semibold text-fg">{r.usuario_nombre}</p>
-                            <p className="truncate text-xs text-fg-muted">
-                              {r.oportunidad_titulo} · {formatDate(r.fecha)}
-                            </p>
-                          </figcaption>
-                        </figure>
-                      </StaggerItem>
-                    ))}
-                  </Stagger>
-                ))}
-            </div>
+                      ))}
+                    </div>
+                  )}
+                  {filtradas.length > visibles && (
+                    <div className="mt-8 flex justify-center">
+                      <button type="button" className="ficha" onClick={() => setVisibles((v) => v + POR_PAGINA)}>
+                        Ver más voluntariados <span className="tabular-nums opacity-60">{filtradas.length - visibles}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </Entrada>
         </div>
 
-        <Entrada as="aside" retraso={0.35} className="space-y-6 lg:col-span-4 lg:col-start-9">
+        <Entrada as="aside" retraso={0.35} className="min-w-0 space-y-6 lg:col-span-4">
           <Card className="space-y-4 p-6 text-sm">
             <h2 className="text-h3 text-fg">Información</h2>
             {o.email_contacto && (
@@ -220,19 +274,78 @@ export default function OrganizacionPage() {
             </Card>
           )}
 
-          {resenas.data && resenas.data.length > 0 && o.calificacion_promedio != null && (
-            <div className="rounded-2xl bg-tinta p-6 text-papel">
-              <p className="font-display text-6xl leading-none tabular-nums tracking-[-0.03em]">{o.calificacion_promedio}</p>
-              <div className="mt-3">
-                <Stars value={o.calificacion_promedio} size={20} />
-              </div>
-              <p className="mt-3 text-sm font-medium text-papel/70">
-                Calificación de {resenas.data.length} {resenas.data.length === 1 ? "voluntario" : "voluntarios"}
-              </p>
+          <section className="overflow-hidden rounded-2xl bg-surface ring-1 ring-tinta/10">
+            <div className="bg-tinta p-6 text-papel">
+              <h2 className="text-h3 text-papel">Reseñas de voluntarios</h2>
+              {o.calificacion_promedio != null && !!resenas.data?.length ? (
+                <div className="mt-4 flex items-end gap-4">
+                  <p className="font-display text-5xl leading-none tabular-nums tracking-[-0.03em]">{o.calificacion_promedio}</p>
+                  <div className="pb-1">
+                    <Stars value={o.calificacion_promedio} size={18} />
+                    <p className="mt-1 text-xs font-medium text-papel/70">
+                      {resenas.data.length} {resenas.data.length === 1 ? "reseña" : "reseñas"}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-papel/70">Todavía no hay reseñas públicas.</p>
+              )}
             </div>
-          )}
+            {!!resenas.data?.length && <ResenasRotativas resenas={resenas.data.slice(0, 10)} />}
+          </section>
         </Entrada>
       </div>
     </>
+  );
+}
+
+function ResenaItem({ r }: { r: ResenaOrganizacion }) {
+  return (
+    <>
+      <Stars value={r.calificacion} size={14} />
+      {r.resena && <blockquote className="mt-2 line-clamp-4 text-sm leading-relaxed text-fg">“{r.resena}”</blockquote>}
+      <p className="mt-3 truncate text-xs font-semibold text-fg">{r.usuario_nombre}</p>
+      <p className="truncate text-xs text-fg-muted">
+        {r.oportunidad_titulo} · {formatDate(r.fecha)}
+      </p>
+    </>
+  );
+}
+
+/** De a dos reseñas: cambian solas con un fundido lento; se pausa con el mouse encima o si la pestaña no se ve. */
+function ResenasRotativas({ resenas }: { resenas: ResenaOrganizacion[] }) {
+  const reduced = useReducedMotion();
+  const [activa, setActiva] = useState(0);
+  const [pausa, setPausa] = useState(false);
+  const grupos: ResenaOrganizacion[][] = [];
+  for (let i = 0; i < resenas.length; i += 2) grupos.push(resenas.slice(i, i + 2));
+  const total = grupos.length;
+
+  useEffect(() => {
+    if (total < 2 || pausa || reduced) return;
+    const id = window.setInterval(() => {
+      if (!document.hidden) setActiva((i) => (i + 1) % total);
+    }, 4500);
+    return () => window.clearInterval(id);
+  }, [total, pausa, reduced]);
+
+  return (
+    <div className="grid" aria-live="polite" onPointerEnter={() => setPausa(true)} onPointerLeave={() => setPausa(false)}>
+      {grupos.map((g, i) => (
+        <ul
+          key={g[0].postulacion_id}
+          aria-hidden={i !== activa}
+          className={`divide-y divide-tinta/10 [grid-area:1/1] transition-opacity ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none ${
+            i === activa ? "opacity-100 delay-[700ms] duration-[1000ms]" : "pointer-events-none opacity-0 duration-[700ms]"
+          }`}
+        >
+          {g.map((r) => (
+            <li key={r.postulacion_id} className="p-5">
+              <ResenaItem r={r} />
+            </li>
+          ))}
+        </ul>
+      ))}
+    </div>
   );
 }

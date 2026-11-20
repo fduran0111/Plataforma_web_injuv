@@ -90,6 +90,8 @@ def organizacion(o: Organizacion, num_oportunidades: int | None = None) -> dict[
         "id_usuario_org": o.id_usuario_org,
         "tiene_logo": bool(o.logo_filename),
         "logo_version": o.logo_filename,
+        "tiene_banner": bool(o.banner_filename),
+        "banner_version": o.banner_filename,
         "created_at": o.created_at,
     }
     if num_oportunidades is not None:

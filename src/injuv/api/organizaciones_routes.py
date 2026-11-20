@@ -17,6 +17,7 @@ from injuv.services.catalogo import limpiar_rut
 router = APIRouter(prefix="/organizaciones", tags=["Organizaciones"])
 
 LOGO_FOLDER = "logos_organizaciones"
+BANNER_FOLDER = "banners_organizaciones"
 CERT_FOLDER = "certificaciones_organizaciones"
 
 
@@ -136,6 +137,12 @@ def logo(org_id: int, db: DbSession) -> FileResponse:
     return files.send(LOGO_FOLDER, org.logo_filename if org else None)
 
 
+@router.get("/{org_id}/banner")
+def banner(org_id: int, db: DbSession) -> FileResponse:
+    org = db.get(Organizacion, org_id)
+    return files.send(BANNER_FOLDER, org.banner_filename if org else None)
+
+
 @router.get("/{org_id}/resenas")
 def resenas_publicas(org_id: int, db: DbSession) -> list[dict[str, Any]]:
     _get_org(db, org_id)
@@ -181,6 +188,23 @@ async def subir_logo(db: DbSession, org: OwnOrganization, imagen: UploadFile = F
 def eliminar_logo(db: DbSession, org: OwnOrganization) -> dict[str, Any]:
     files.delete(LOGO_FOLDER, org.logo_filename)
     org.logo_filename = None
+    db.commit()
+    return _detalle(db, org)
+
+
+@router.post("/mia/banner")
+async def subir_banner(db: DbSession, org: OwnOrganization, imagen: UploadFile = File(...)) -> dict[str, Any]:
+    name, _, _ = await files.save_upload(imagen, BANNER_FOLDER, f"banner_org_{org.id}", files.IMAGE_EXTS, 8)
+    files.delete(BANNER_FOLDER, org.banner_filename)
+    org.banner_filename = name
+    db.commit()
+    return _detalle(db, org)
+
+
+@router.delete("/mia/banner")
+def eliminar_banner(db: DbSession, org: OwnOrganization) -> dict[str, Any]:
+    files.delete(BANNER_FOLDER, org.banner_filename)
+    org.banner_filename = None
     db.commit()
     return _detalle(db, org)
 
