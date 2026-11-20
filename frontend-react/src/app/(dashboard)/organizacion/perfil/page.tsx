@@ -1,6 +1,6 @@
 "use client";
 
-import { Award, Camera, Plus, Trash2 } from "lucide-react";
+import { Award, Camera, ImageIcon, Plus, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Alert, Avatar, Button, Card, ErrorState, Field, Input, Select, Spinner, Textarea } from "@/components/ui";
 import UbicacionFields from "@/components/UbicacionFields";
@@ -26,6 +26,9 @@ function Editor({ org, onSaved }: { org: Organizacion; onSaved: (o: Organizacion
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const logoRef = useRef<HTMLInputElement>(null);
+  const bannerRef = useRef<HTMLInputElement>(null);
+  const [bannerPorRecortar, setBannerPorRecortar] = useState<File | null>(null);
+  const [subiendoBanner, setSubiendoBanner] = useState(false);
   const certRef = useRef<HTMLInputElement>(null);
   const [certNombre, setCertNombre] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -115,6 +118,37 @@ function Editor({ org, onSaved }: { org: Organizacion; onSaved: (o: Organizacion
     }
   }
 
+  function elegirBanner(file: File | undefined) {
+    if (bannerRef.current) bannerRef.current.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/") || file.size > 15 * 1024 * 1024) {
+      toast("JPG o PNG, máx. 15 MB", "error");
+      return;
+    }
+    setBannerPorRecortar(file);
+  }
+
+  async function cambiarBanner(file: File | null) {
+    setSubiendoBanner(true);
+    try {
+      let updated: Organizacion;
+      if (file) {
+        const body = new FormData();
+        body.append("imagen", file);
+        updated = await apiFetch<Organizacion>("/organizaciones/mia/banner", { method: "POST", body });
+      } else {
+        updated = await apiFetch<Organizacion>("/organizaciones/mia/banner", { method: "DELETE" });
+      }
+      onSaved(updated);
+      setForm(updated);
+      toast(file ? "Foto de portada actualizada" : "Foto de portada eliminada");
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setSubiendoBanner(false);
+    }
+  }
+
   async function subirCertificacion(file: File | undefined) {
     if (!file) return;
     if (certNombre.trim().length < 2) return toast("Indica el nombre del documento", "info");
@@ -153,19 +187,77 @@ function Editor({ org, onSaved }: { org: Organizacion; onSaved: (o: Organizacion
     <>
       <form onSubmit={guardar} className="grid gap-6 lg:grid-cols-[300px_1fr]">
         <div className="space-y-6">
-          <Card className="p-6 text-center">
-            <Avatar name={form.nombre} src={form.tiene_logo ? fileUrl.logo(form.id, form.logo_version) : null} size={120} className="mx-auto" />
-            <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => elegirLogo(e.target.files?.[0])} />
-            <RecortarFoto file={porRecortar} titulo="Ajusta el logo" formato="image/png" onCancel={() => setPorRecortar(null)} onConfirm={async (f) => { await subirLogo(f); setPorRecortar(null); }} />
-            <div className="mt-4 flex justify-center gap-2">
-              <Button size="sm" variant="outline" loading={uploading} onClick={() => logoRef.current?.click()}>
-                <Camera className="h-4 w-4" /> Cambiar logo
-              </Button>
-              {form.tiene_logo && (
-                <Button size="sm" variant="ghost" aria-label="Quitar logo" title="Quitar logo" disabled={uploading} onClick={eliminarLogo}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+          <Card className="overflow-hidden text-center">
+            <div className="group relative aspect-[2/1] bg-tinta">
+              {form.tiene_banner ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={fileUrl.banner(form.id, form.banner_version)} alt="Foto de portada actual" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full items-center justify-center gap-2 pb-10 text-xs text-papel/60 transition-opacity duration-200 group-hover:opacity-0">
+                  <ImageIcon className="h-4 w-4" /> Sin foto de portada
+                </div>
               )}
+              <input ref={bannerRef} type="file" accept="image/*" className="hidden" onChange={(e) => elegirBanner(e.target.files?.[0])} />
+              <button
+                type="button"
+                disabled={subiendoBanner}
+                onClick={() => bannerRef.current?.click()}
+                className={`absolute inset-0 flex items-center justify-center gap-2 bg-tinta/60 pb-10 text-sm font-semibold text-papel outline-none transition-opacity duration-200 ease-[var(--ease-out)] focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100 ${subiendoBanner ? "opacity-100" : "opacity-0"}`}
+              >
+                <Camera className="h-4 w-4" /> {subiendoBanner ? "Subiendo…" : form.tiene_banner ? "Cambiar portada" : "Subir portada"}
+              </button>
+              {form.tiene_banner && !subiendoBanner && (
+                <button
+                  type="button"
+                  aria-label="Quitar foto de portada"
+                  title="Quitar foto de portada"
+                  onClick={() => cambiarBanner(null)}
+                  className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-tinta/70 text-papel opacity-0 outline-none transition-[opacity,background-color] duration-200 ease-[var(--ease-out)] hover:bg-brand-red focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <div className="px-6 pb-6">
+              <div className="group/logo relative mx-auto -mt-[52px] w-fit">
+                <Avatar name={form.nombre} src={form.tiene_logo ? fileUrl.logo(form.id, form.logo_version) : null} size={104} className="ring-4 ring-surface" />
+                <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => elegirLogo(e.target.files?.[0])} />
+                <button
+                  type="button"
+                  disabled={uploading}
+                  onClick={() => logoRef.current?.click()}
+                  className={`absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-full bg-tinta/85 backdrop-blur-[2px] text-xs font-semibold text-papel outline-none ring-4 ring-surface transition-opacity duration-200 ease-[var(--ease-out)] focus-visible:opacity-100 group-hover/logo:opacity-100 [@media(hover:none)]:opacity-100 ${uploading ? "opacity-100" : "opacity-0"}`}
+                >
+                  <Camera className="h-4 w-4" /> {uploading ? "Subiendo…" : form.tiene_logo ? "Cambiar logo" : "Subir logo"}
+                </button>
+                {form.tiene_logo && !uploading && (
+                  <button
+                    type="button"
+                    aria-label="Quitar logo"
+                    title="Quitar logo"
+                    onClick={eliminarLogo}
+                    className="absolute -right-1 bottom-0 grid h-8 w-8 place-items-center rounded-full bg-tinta text-papel opacity-0 outline-none ring-2 ring-surface transition-[opacity,background-color] duration-200 ease-[var(--ease-out)] hover:bg-brand-red focus-visible:opacity-100 group-hover/logo:opacity-100 [@media(hover:none)]:opacity-100"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              <RecortarFoto file={porRecortar} titulo="Ajusta el logo" formato="image/png" onCancel={() => setPorRecortar(null)} onConfirm={async (f) => { await subirLogo(f); setPorRecortar(null); }} />
+              <RecortarFoto
+                file={bannerPorRecortar}
+                titulo="Encuadra la foto de portada"
+                mascara="rect"
+                formato="image/jpeg"
+                aspecto={2}
+                anchoSalida={2000}
+                descripcion="El nombre y las cifras van sobre la parte de abajo: deja lo importante de la foto arriba o al centro."
+                onCancel={() => setBannerPorRecortar(null)}
+                onConfirm={async (f) => {
+                  setBannerPorRecortar(null);
+                  await cambiarBanner(f);
+                }}
+              />
+              <p className="mt-4 text-xs text-fg-muted">Pasa el mouse sobre la portada o el logo para cambiarlos. La portada se muestra de fondo en tu página pública.</p>
             </div>
           </Card>
           <Card className="p-6">
