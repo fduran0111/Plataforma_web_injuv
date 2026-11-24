@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from injuv.api.deps import CurrentUser, DbSession
 from injuv.api.oportunidades_routes import get_oportunidad_or_404
@@ -22,6 +22,10 @@ Canal = Literal["anuncios", "chat"]
 class MensajeBody(BaseModel):
     canal: Canal = "chat"
     texto: str = Field(min_length=1, max_length=2000)
+
+
+class FijarBody(BaseModel):
+    fijado: bool = True
 
 
 def _es_staff(op: Oportunidad, org: Organizacion | None, user: Usuario) -> bool:
@@ -54,6 +58,7 @@ def _mensaje(m: ForoMensaje, autor: Usuario | None, op: Oportunidad, org: Organi
         else "Cuenta eliminada",
         "es_tutor": bool(autor and _es_staff(op, org, autor)),
         "texto": m.texto,
+        "fijado": bool(m.fijado),
         "created_at": m.created_at.isoformat() if m.created_at else None,
     }
 
@@ -126,3 +131,30 @@ def publicar(oportunidad_id: int, body: MensajeBody, db: DbSession, user: Curren
     db.add(m)
     db.commit()
     return _mensaje(m, user, op, org)
+
+
+@router.patch("/oportunidades/{oportunidad_id}/foro/{mensaje_id}")
+def fijar_mensaje(
+    oportunidad_id: int, mensaje_id: int, body: FijarBody, db: DbSession, user: CurrentUser
+) -> dict[str, Any]:
+    """Fija/desfija un mensaje del foro (solo staff). Un solo fijado por canal:
+    al fijar uno nuevo se desfijan los anteriores."""
+    op = get_oportunidad_or_404(db, oportunidad_id)
+    org, staff = _acceso(db, op, user)
+    if not staff:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo los tutores pueden fijar mensajes")
+    m = db.scalar(
+        select(ForoMensaje).where(ForoMensaje.id == mensaje_id, ForoMensaje.oportunidad_id == op.id)
+    )
+    if not m:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Mensaje no encontrado")
+    if body.fijado:
+        db.execute(
+            update(ForoMensaje)
+            .where(ForoMensaje.oportunidad_id == op.id, ForoMensaje.canal == m.canal)
+            .values(fijado=False)
+        )
+    m.fijado = body.fijado
+    db.commit()
+    autor = db.get(Usuario, m.autor_id) if m.autor_id else None
+    return _mensaje(m, autor, op, org)

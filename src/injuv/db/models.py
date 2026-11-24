@@ -264,4 +264,5 @@ class ForoMensaje(Base):
     canal: Mapped[str] = mapped_column(String(10), default="chat")
     autor_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id", ondelete="SET NULL"))
     texto: Mapped[str] = mapped_column(Text)
+    fijado: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
