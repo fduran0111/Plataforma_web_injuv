@@ -34,6 +34,7 @@ def eliminar_organizacion(db: Session, org: Organizacion) -> None:
         if miembro.rol == "organizacion":
             miembro.rol = "user"
     files.delete("logos_organizaciones", org.logo_filename)
+    files.delete("banners_organizaciones", org.banner_filename)
     db.delete(org)
 
 

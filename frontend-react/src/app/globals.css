@@ -619,6 +619,23 @@ input[type="password"]::-ms-clear {
   display: none;
 }
 
+/* Panel de filtros desplegable: aparece desde el botón (solo opacidad y transform). */
+.panel-filtros {
+  transform-origin: top right;
+  animation: panel-filtros-entra 220ms var(--ease-out) both;
+}
+@keyframes panel-filtros-entra {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel-filtros {
+    animation-name: solo-opacidad;
+  }
+}
+
 /* Foto de portada: se asienta (1.06 → 1) al cargar la página. */
 .portada-foto {
   animation: portada-asienta 1800ms var(--ease-out) both;

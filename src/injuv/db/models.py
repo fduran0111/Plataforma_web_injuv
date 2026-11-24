@@ -66,6 +66,7 @@ class Organizacion(Base):
     created_at: Mapped[datetime | None] = mapped_column(DateTime)
     id_usuario_admin: Mapped[int | None] = mapped_column(Integer)
     logo_filename: Mapped[str | None] = mapped_column(String(255))
+    banner_filename: Mapped[str | None] = mapped_column(String(255))
 
 
 class SolicitudOrganizacion(Base):
@@ -263,4 +264,5 @@ class ForoMensaje(Base):
     canal: Mapped[str] = mapped_column(String(10), default="chat")
     autor_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id", ondelete="SET NULL"))
     texto: Mapped[str] = mapped_column(Text)
+    fijado: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)

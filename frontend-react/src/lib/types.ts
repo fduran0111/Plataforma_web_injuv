@@ -163,6 +163,8 @@ export type Organizacion = {
   fecha_creacion: string | null;
   tiene_logo: boolean;
   logo_version: string | null;
+  tiene_banner: boolean;
+  banner_version: string | null;
   created_at: string | null;
   num_oportunidades?: number;
   total_postulaciones?: number;
