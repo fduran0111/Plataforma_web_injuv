@@ -93,6 +93,11 @@ export async function apiFetch<T>(
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
 
+/** Archivo autenticado como blob (para procesarlo en el navegador). */
+export async function apiBlob(path: string): Promise<Blob> {
+  return (await request(path)).blob();
+}
+
 /** Descarga autenticada: obtiene el archivo como blob y dispara la descarga en el navegador. */
 export async function downloadFile(path: string, fallbackName = "archivo"): Promise<void> {
   const res = await request(path);

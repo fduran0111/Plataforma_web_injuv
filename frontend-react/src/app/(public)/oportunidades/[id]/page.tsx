@@ -150,8 +150,15 @@ export default function OportunidadDetailPage() {
   return (
     <>
       {/* Banda de tinta: título, organización y cifras clave */}
-      <section className="bg-tinta text-papel">
-        <div className="mx-auto max-w-7xl px-4 pb-14 pt-8 sm:px-6 lg:px-8 lg:pb-20 lg:pt-10">
+      <section className="relative overflow-clip bg-tinta text-papel">
+        {op.tiene_imagen && (
+          <div aria-hidden className="absolute inset-0">
+            {/* eslint-disable-next-line @next/next/no-img-element -- misma imagen ya cargada arriba */}
+            <img src={fileUrl.oportunidad(op.id)} alt="" className="h-full w-full scale-125 object-cover opacity-40 blur-3xl saturate-150" />
+            <div className="absolute inset-0 bg-tinta/55" />
+          </div>
+        )}
+        <div className="relative mx-auto max-w-7xl px-4 pb-14 pt-8 sm:px-6 lg:px-8 lg:pb-20 lg:pt-10">
           <Entrada>
             <button
               type="button"

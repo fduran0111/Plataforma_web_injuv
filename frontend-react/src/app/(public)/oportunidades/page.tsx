@@ -89,7 +89,7 @@ function OportunidadesContent() {
                   <>
                     <span className="tabular-nums">{data.length}</span>{" "}
                     {data.length === 1 ? "voluntariado" : "voluntariados"}
-                    {hasFilters ? " con estos filtros" : " abiertos"}
+                    {hasFilters ? " con estos filtros" : data.length === 1 ? " abierto" : " abiertos"}
                   </>
                 ) : (
                   "Buscando voluntariados…"

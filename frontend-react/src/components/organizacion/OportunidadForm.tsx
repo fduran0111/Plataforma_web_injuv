@@ -1,8 +1,9 @@
 "use client";
 
 import { Mail, Plus, Search, Trash2, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import FechasFields, { validarPeriodo } from "@/components/organizacion/FechasFields";
+import RecortarFoto from "@/components/perfil/RecortarFoto";
 import UbicacionFields, { type Ubicacion } from "@/components/UbicacionFields";
 import { Alert, Badge, Button, Checkbox, Field, Input, Modal, Select, Textarea } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
@@ -110,8 +111,12 @@ export default function OportunidadForm({
   const [extras, setExtras] = useState<Ubicacion[]>(oportunidad ? ubicacionesExtraDe(oportunidad) : []);
   const [preguntas, setPreguntas] = useState<PreguntaForm[]>(oportunidad ? preguntasDe(oportunidad) : []);
   const [imagen, setImagen] = useState<File | null>(null);
+  const [imagenOriginal, setImagenOriginal] = useState<File | null>(null);
+  const [recortando, setRecortando] = useState<File | null>(null);
   const [quitarImagen, setQuitarImagen] = useState(false);
   const imagenRef = useRef<HTMLInputElement>(null);
+  const previewImagen = useMemo(() => (imagen ? URL.createObjectURL(imagen) : null), [imagen]);
+  useEffect(() => () => { if (previewImagen) URL.revokeObjectURL(previewImagen); }, [previewImagen]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const { data: integrantes } = useApi<Integrante[]>(open ? "/organizaciones/mia/integrantes" : null);
@@ -288,7 +293,7 @@ export default function OportunidadForm({
         </Field>
         <div className="sm:col-span-2 mt-2 border-t border-border pt-4">
           <p className="text-sm font-semibold text-fg">Imagen de la convocatoria (opcional)</p>
-          <p className="mb-3 mt-0.5 text-xs text-fg-muted">Se muestra como banner en la página del voluntariado y le da identidad a la convocatoria.</p>
+          <p className="mb-3 mt-0.5 text-xs text-fg-muted">Se muestra como banner en la página del voluntariado. Al elegirla podrás encuadrarla en formato horizontal 16:9.</p>
           {(oportunidad?.tiene_imagen && !quitarImagen && !imagen) && (
             <div className="mb-3 flex items-center gap-3">
               {/* eslint-disable-next-line @next/next/no-img-element -- imagen de la API */}
@@ -303,12 +308,38 @@ export default function OportunidadForm({
             type="file"
             accept="image/*"
             onChange={(e) => {
-              setImagen(e.target.files?.[0] ?? null);
-              setQuitarImagen(false);
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) {
+                setImagenOriginal(f);
+                setRecortando(f);
+              }
             }}
             className="block w-full text-sm text-fg-secondary file:mr-4 file:rounded-lg file:border-0 file:bg-brand-soft file:px-4 file:py-2 file:text-sm file:font-semibold file:text-brand"
           />
-          {imagen && <p className="mt-1.5 text-xs text-fg-muted">Se subirá al guardar: {imagen.name}</p>}
+          {imagen && previewImagen && (
+            <div className="mt-3 flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element -- vista previa local del recorte */}
+              <img src={previewImagen} alt="Vista previa del encuadre" className="aspect-video w-32 rounded-lg object-cover ring-1 ring-tinta/10" />
+              <div className="flex flex-col items-start gap-1">
+                <p className="text-xs text-fg-muted">Se subirá al guardar: {imagen.name}</p>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setRecortando(imagenOriginal ?? imagen)}>
+                  Volver a encuadrar
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setImagen(null);
+                    setImagenOriginal(null);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" /> Quitar
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
         <div className="sm:col-span-2 mt-2 border-t border-border pt-4">
           <p className="text-sm font-semibold text-fg">Período del voluntariado</p>
@@ -517,6 +548,21 @@ export default function OportunidadForm({
           </div>
         </div>
       </form>
+      <RecortarFoto
+        file={recortando}
+        titulo="Encuadra la imagen del voluntariado"
+        descripcion="Así se verá en el listado y en la página del voluntariado. Arrastra para moverla y usa el control para acercar o alejar."
+        aspecto={16 / 9}
+        mascara="rect"
+        anchoSalida={1280}
+        anchoMinimo={640}
+        onCancel={() => setRecortando(null)}
+        onConfirm={(recorte) => {
+          setImagen(recorte);
+          setQuitarImagen(false);
+          setRecortando(null);
+        }}
+      />
     </Modal>
   );
 }

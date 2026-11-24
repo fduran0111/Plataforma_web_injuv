@@ -1,29 +1,6 @@
 "use client";
 
-import {
-  Accessibility,
-  ArrowRight,
-  Award,
-  Baby,
-  BookOpen,
-  Building2,
-  Drama,
-  GraduationCap,
-  HandHeart,
-  HandHelping,
-  HeartHandshake,
-  HeartPulse,
-  Laptop,
-  Leaf,
-  Palette,
-  PawPrint,
-  Search,
-  Send,
-  Siren,
-  Trophy,
-  UserPlus,
-  Users,
-} from "lucide-react";
+import { ArrowRight, Award, BookOpen, Building2, GraduationCap, HeartHandshake, Search, Send, UserPlus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { animate, type AnimationPlaybackControls } from "motion";
@@ -42,6 +19,7 @@ import { Avatar, Button, LinkButton, Select, Stars } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { useOportunidadesPostuladas } from "@/hooks/useMisPostulaciones";
 import { fileUrl } from "@/lib/api";
+import { ICONO_AREA } from "@/lib/areas";
 import { AREAS_VOLUNTARIADO, REGIONES } from "@/lib/constants";
 import { cn } from "@/lib/format";
 import type { Noticia, Oportunidad, PortadaPublica, ResenaPublica } from "@/lib/types";
@@ -55,23 +33,6 @@ const PASOS = [
   { icon: Send, title: "Postula", text: "Envía tu postulación en un clic y sigue su estado desde tu perfil." },
   { icon: Award, title: "Certifica tu experiencia", text: "Registra tus horas y recibe el certificado de la organización." },
 ];
-
-const ICONO_AREA: Record<string, typeof UserPlus> = {
-  Educación: GraduationCap,
-  Comunidad: Users,
-  "Medio Ambiente": Leaf,
-  Salud: HeartPulse,
-  Deporte: Trophy,
-  Cultura: Drama,
-  Emergencia: Siren,
-  "Desarrollo Social": HandHeart,
-  Tecnología: Laptop,
-  Arte: Palette,
-  Animales: PawPrint,
-  "Adultos Mayores": HandHelping,
-  "Niños y Jóvenes": Baby,
-  Discapacidad: Accessibility,
-};
 
 const TITULO_H2 = "text-[clamp(2.5rem,1.4rem+3.6vw,4.75rem)] leading-[0.98] tracking-[-0.03em]";
 
