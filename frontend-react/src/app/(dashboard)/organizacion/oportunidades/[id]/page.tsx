@@ -38,7 +38,7 @@ export default function PostulantesPage() {
   const lista = voluntarios.filter(
     (p) =>
       (estadoFiltro === "todos" || p.estado === estadoFiltro) &&
-      Object.entries(filtroPregunta).every(([pid, valor]) => !valor || (p.respuestas ?? {})[pid] === valor),
+      Object.entries(filtroPregunta).every(([pid, valor]) => !valor || ((p.respuestas ?? {})[pid] ?? "").split("\n").includes(valor)),
   );
   const conteo = (e: string) => voluntarios.filter((p) => p.estado === e).length;
 

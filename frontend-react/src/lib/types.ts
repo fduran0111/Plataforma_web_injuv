@@ -45,6 +45,8 @@ export type PreguntaOportunidad = {
   texto: string;
   tipo: TipoPregunta;
   opciones: string[];
+  /** Solo en "alternativas": se pueden marcar varias (la respuesta las separa con salto de línea). */
+  multiple?: boolean;
   obligatoria: boolean;
 };
 
@@ -306,3 +308,15 @@ export type PortadaFoto = { id: number; archivo: string; alt: string; activa?: b
 
 export type PortadaPublica = { config: PortadaConfig; fotos: { inicio: PortadaFoto[]; galeria: PortadaFoto[]; acceso?: PortadaFoto[] } };
 export type PortadaAdmin = PortadaPublica;
+
+export type Notificacion = {
+  id: number;
+  tipo: string;
+  titulo: string;
+  texto: string | null;
+  enlace: string | null;
+  leida: boolean;
+  created_at: string | null;
+};
+
+export type NotificacionesResp = { items: Notificacion[]; no_leidas: number };

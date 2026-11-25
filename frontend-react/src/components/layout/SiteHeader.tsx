@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import NotificacionesBell from "@/components/layout/NotificacionesBell";
 import UserMenu from "@/components/layout/UserMenu";
 import { NAV_LINKS } from "@/components/layout/nav";
 import { LinkButton } from "@/components/ui";
@@ -93,7 +94,10 @@ export default function SiteHeader() {
         <div className="ml-auto flex items-center gap-2">
           {!loading &&
             (user ? (
-              <UserMenu />
+              <>
+                <NotificacionesBell />
+                <UserMenu />
+              </>
             ) : (
               <LinkButton href="/login" size="sm">
                 Iniciar sesión

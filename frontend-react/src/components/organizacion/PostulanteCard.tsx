@@ -271,7 +271,7 @@ export default function PostulanteCard({
                     {preguntas.map((q) => (
                       <div key={q.id}>
                         <dt className="text-fg-muted">{q.texto}</dt>
-                        <dd className="font-medium text-fg">{(p.respuestas ?? {})[q.id] || "Sin respuesta"}</dd>
+                        <dd className="font-medium text-fg">{(p.respuestas ?? {})[q.id]?.split("\n").join(", ") || "Sin respuesta"}</dd>
                       </div>
                     ))}
                   </dl>

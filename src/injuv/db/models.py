@@ -254,6 +254,21 @@ class PortadaFoto(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
 
+class Notificacion(Base):
+    """Aviso dentro de la plataforma para un usuario (migrations/008_notificaciones.sql)."""
+
+    __tablename__ = "notificaciones"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(Integer)
+    tipo: Mapped[str] = mapped_column(String(40))
+    titulo: Mapped[str] = mapped_column(String(200))
+    texto: Mapped[str | None] = mapped_column(String(500))
+    enlace: Mapped[str | None] = mapped_column(String(300))
+    leida: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+
 class ForoMensaje(Base):
     """Mensajes de los foros de cada voluntariado (migrations/004_foros_voluntariado.sql)."""
 

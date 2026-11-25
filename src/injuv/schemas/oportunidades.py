@@ -39,6 +39,8 @@ class PreguntaItem(BaseModel):
     texto: str = Field(min_length=3, max_length=300)
     tipo: TipoPregunta = "si_no"
     opciones: list[str] = Field(default_factory=list, max_length=10)
+    # Solo en "alternativas": el postulante puede marcar varias (se guardan separadas por salto de línea).
+    multiple: bool = False
     obligatoria: bool = True
 
     @field_validator("texto", mode="before")
@@ -50,15 +52,17 @@ class PreguntaItem(BaseModel):
     @classmethod
     def _opciones_limpias(cls, v: object) -> object:
         if isinstance(v, list):
-            return [o.strip()[:100] for o in v if isinstance(o, str) and o.strip()]
+            limpias = (" ".join(o.split())[:100] for o in v if isinstance(o, str) and o.strip())
+            return list(dict.fromkeys(limpias))
         return v
 
     @model_validator(mode="after")
     def _coherente(self) -> "PreguntaItem":
         if self.tipo == "alternativas" and len(self.opciones) < 2:
-            raise ValueError("Las preguntas de alternativas necesitan al menos 2 opciones")
+            raise ValueError("Las preguntas de alternativas necesitan al menos 2 opciones distintas")
         if self.tipo != "alternativas":
             self.opciones = []
+            self.multiple = False
         return self
 
 
