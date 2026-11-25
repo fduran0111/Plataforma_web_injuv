@@ -2,11 +2,11 @@
 
 import { ArrowUpRight, Newspaper } from "lucide-react";
 import Link from "next/link";
-import { NoticiaCard } from "@/components/ContentCards";
+import { NoticiaCard, NoticiaCardSkeleton } from "@/components/ContentCards";
 import { Stagger, StaggerItem } from "@/components/home/Stagger";
 import Entrada from "@/components/public/Entrada";
 import Portada from "@/components/public/Portada";
-import { EmptyState, ErrorState, Spinner } from "@/components/ui";
+import { EmptyState, ErrorState } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { fileUrl } from "@/lib/api";
 import { formatDate } from "@/lib/format";
@@ -23,12 +23,16 @@ function Destacada({ n }: { n: Noticia }) {
     >
       <div className="persiana-montaje relative aspect-[16/10] overflow-clip lg:col-span-7 lg:aspect-auto lg:min-h-[420px]">
         {n.imagen ? (
-          // eslint-disable-next-line @next/next/no-img-element -- imagen servida por la API
-          <img
-            src={fileUrl.noticia(n.imagen)}
-            alt=""
-            className="h-full w-full object-cover transition-transform duration-700 ease-[var(--ease-out)] group-hover:scale-[1.03]"
-          />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- relleno ambiental de la misma foto */}
+            <img aria-hidden src={fileUrl.noticia(n.imagen)} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-50 blur-xl saturate-150" />
+            {/* eslint-disable-next-line @next/next/no-img-element -- imagen servida por la API */}
+            <img
+              src={fileUrl.noticia(n.imagen)}
+              alt=""
+              className="relative h-full w-full object-contain transition-transform duration-700 ease-[var(--ease-out)] group-hover:scale-[1.03]"
+            />
+          </>
         ) : (
           <div className="persiana-fondo flex h-full flex-col justify-between bg-ambar p-6 text-tinta lg:p-8">
             <Newspaper className="h-8 w-8" />
@@ -41,7 +45,7 @@ function Destacada({ n }: { n: Noticia }) {
         )}
       </div>
       <div className="flex flex-col p-6 sm:p-8 lg:col-span-5 lg:p-10">
-        <p className="text-sm font-semibold tabular-nums text-fg-muted">{formatDate(n.fecha_publicacion)}</p>
+        <p className="text-sm font-semibold tabular-nums text-fg-secondary">{formatDate(n.fecha_publicacion)}</p>
         <h2 className="mt-3 font-display text-[clamp(1.75rem,1.2rem+2vw,2.75rem)] leading-[1.05] tracking-[-0.025em] text-fg transition-colors duration-200 group-hover:text-brand [text-wrap:balance]">
           {n.titulo}
         </h2>
@@ -80,7 +84,13 @@ export default function NoticiasPage() {
 
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
         {error && <ErrorState message={error} onRetry={reload} />}
-        {loading && !data && <Spinner />}
+        {loading && !data && (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <NoticiaCardSkeleton key={i} />
+            ))}
+          </div>
+        )}
         {data?.length === 0 && <EmptyState icon={Newspaper} title="Aún no hay noticias publicadas" />}
         {primera && (
           <Entrada>

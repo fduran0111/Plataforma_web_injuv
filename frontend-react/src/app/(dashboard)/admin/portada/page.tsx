@@ -6,7 +6,7 @@ import { useRef, useState } from "react";
 import RecortarFoto from "@/components/perfil/RecortarFoto";
 import { Alert, Button, Card, ConfirmModal, Field, Input, Modal, Spinner, Tabs, Textarea } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
-import { apiFetch, fileUrl, getStoredToken } from "@/lib/api";
+import { apiBlob, apiFetch, fileUrl, getStoredToken } from "@/lib/api";
 import { ACCESO_DEF } from "@/lib/portada";
 import type { PortadaAdmin, PortadaFoto } from "@/lib/types";
 import { useToast } from "@/providers/ToastProvider";
@@ -77,9 +77,7 @@ function SeccionFotos({ titulo, seccion, fotos, reload }: { titulo: string; secc
   const recuadrar = async (f: PortadaFoto) => {
     setReId(f.id);
     try {
-      const res = await fetch(fileUrl.portada(f.archivo_original ?? f.archivo));
-      if (!res.ok) throw new Error("No pudimos descargar la foto");
-      const blob = await res.blob();
+      const blob = await apiBlob(`/portada/fotos/${f.id}/original`);
       setRecorte({ modo: "editar", file: new File([blob], f.archivo_original ?? f.archivo, { type: blob.type }), fotoId: f.id, sinOriginal: !f.archivo_original });
     } catch (e) {
       toast((e as Error).message, "error");

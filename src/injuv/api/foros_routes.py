@@ -12,6 +12,7 @@ from injuv.api.deps import CurrentUser, DbSession
 from injuv.api.oportunidades_routes import get_oportunidad_or_404
 from injuv.db.models import ForoMensaje, Oportunidad, Organizacion, Postulacion, Usuario
 from injuv.security.rbac import is_admin
+from injuv.services import notificaciones
 from injuv.services.catalogo import rechazo_participacion
 
 router = APIRouter(tags=["Foros"])
@@ -129,6 +130,18 @@ def publicar(oportunidad_id: int, body: MensajeBody, db: DbSession, user: Curren
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo los tutores pueden publicar anuncios")
     m = ForoMensaje(oportunidad_id=op.id, canal=body.canal, autor_id=user.id, texto=body.texto.strip(), created_at=datetime.now())
     db.add(m)
+    if body.canal == "anuncios":
+        postulantes = db.scalars(
+            select(Postulacion).where(Postulacion.oportunidad_id == op.id, Postulacion.estado == "Seleccionado")
+        ).all()
+        notificaciones.notificar_varios(
+            db,
+            (p.usuario_id for p in postulantes if p.usuario_id != user.id and not rechazo_participacion(p)),
+            "anuncio_foro",
+            f"Anuncio en «{op.titulo}»",
+            body.texto.strip()[:200],
+            f"/oportunidades/{op.id}",
+        )
     db.commit()
     return _mensaje(m, user, op, org)
 

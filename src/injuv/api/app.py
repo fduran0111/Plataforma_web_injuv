@@ -13,6 +13,7 @@ from injuv.api import (
     auth_routes,
     foros_routes,
     noticias_routes,
+    notificaciones_routes,
     oportunidades_routes,
     organizaciones_routes,
     portada_routes,
@@ -74,6 +75,7 @@ for module in (
     portada_routes,
     public_routes,
     foros_routes,
+    notificaciones_routes,
 ):
     app.include_router(module.router)
 

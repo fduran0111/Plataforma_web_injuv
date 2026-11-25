@@ -141,6 +141,7 @@ def oportunidad(op: Oportunidad, org: Organizacion | None = None, num_postulacio
                 "texto": q.get("texto", ""),
                 "tipo": q.get("tipo", "si_no"),
                 "opciones": q.get("opciones") or [],
+                "multiple": bool(q.get("multiple", False)),
                 "obligatoria": bool(q.get("obligatoria", True)),
             }
             for q in (op.preguntas or [])

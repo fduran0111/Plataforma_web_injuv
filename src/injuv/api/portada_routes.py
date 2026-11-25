@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.exc import DBAPIError
 
@@ -128,6 +128,18 @@ def _foto_o_404(db: DbSession, foto_id: int) -> PortadaFoto:
     if not f:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Esa foto no existe")
     return f
+
+
+@router.get("/fotos/{foto_id}/original")
+def original_foto(foto_id: int, db: DbSession, _: AdminUser) -> Response:
+    """Bytes de la foto (original si existe) para volver a encuadrarla. Se entrega desde la API,
+    sin redirigir al CDN, porque el navegador la lee con fetch y el bucket público no tiene CORS."""
+    f = _foto_o_404(db, foto_id)
+    nombre = f.archivo_original or f.archivo
+    data = files.leer_bytes(FOLDER, nombre)
+    if data is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No encontramos el archivo de la foto")
+    return Response(data, media_type=files._mime(nombre), headers={"Cache-Control": "no-store"})
 
 
 @router.patch("/fotos/{foto_id}")

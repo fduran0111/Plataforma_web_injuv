@@ -1,6 +1,7 @@
 "use client";
 
 import * as m from "motion/react-m";
+import { cn } from "@/lib/format";
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
@@ -38,7 +39,7 @@ export function Stagger({
 
 export function StaggerItem({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
-    <m.div className={className} variants={ITEM}>
+    <m.div className={cn("min-w-0", className)} variants={ITEM}>
       {children}
     </m.div>
   );

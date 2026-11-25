@@ -1,12 +1,12 @@
 "use client";
 
-import { ArrowLeft, ArrowUpRight, CheckCircle2, Mail, Phone, User } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Check, CheckCircle2, Mail, Phone, User } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { DeadlineBadge } from "@/components/oportunidades/OportunidadCard";
 import Entrada from "@/components/public/Entrada";
-import { Alert, Avatar, Badge, Button, Card, ErrorState, Field, LinkButton, Modal, Select, Spinner, Textarea } from "@/components/ui";
+import { Alert, Avatar, Badge, Button, Card, ErrorState, LinkButton, Modal, Spinner, Textarea } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { apiFetch, fileUrl } from "@/lib/api";
 import { ESTADO_POSTULACION_TONE } from "@/lib/constants";
@@ -150,8 +150,15 @@ export default function OportunidadDetailPage() {
   return (
     <>
       {/* Banda de tinta: título, organización y cifras clave */}
-      <section className="bg-tinta text-papel">
-        <div className="mx-auto max-w-7xl px-4 pb-14 pt-8 sm:px-6 lg:px-8 lg:pb-20 lg:pt-10">
+      <section className="relative overflow-clip bg-tinta text-papel">
+        {op.tiene_imagen && (
+          <div aria-hidden className="absolute inset-0">
+            {/* eslint-disable-next-line @next/next/no-img-element -- misma imagen ya cargada arriba */}
+            <img src={fileUrl.oportunidad(op.id)} alt="" className="h-full w-full scale-125 object-cover opacity-40 blur-3xl saturate-150" />
+            <div className="absolute inset-0 bg-tinta/55" />
+          </div>
+        )}
+        <div className="relative mx-auto max-w-7xl px-4 pb-14 pt-8 sm:px-6 lg:px-8 lg:pb-20 lg:pt-10">
           <Entrada>
             <button
               type="button"
@@ -312,6 +319,9 @@ function PostularModal({
   preguntas: PreguntaOportunidad[];
 }) {
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
+  const responder = (id: string, valor: string) => setRespuestas((r) => ({ ...r, [id]: valor }));
+  const respondida = (q: PreguntaOportunidad) => !!respuestas[q.id]?.trim();
+  const faltan = preguntas.filter((q) => q.obligatoria && !respondida(q)).length;
 
   return (
     <Modal
@@ -320,57 +330,120 @@ function PostularModal({
       title="Confirmar postulación"
       footer={
         <>
+          {preguntas.length > 0 && (
+            <p aria-live="polite" className="mr-auto self-center text-xs text-fg-secondary tabular-nums">
+              {faltan
+                ? `Falta${faltan === 1 ? "" : "n"} ${faltan} respuesta${faltan === 1 ? "" : "s"} obligatoria${faltan === 1 ? "" : "s"}`
+                : `${preguntas.filter(respondida).length} de ${preguntas.length} respondidas`}
+            </p>
+          )}
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>
-          <Button onClick={() => onSubmit(respuestas)} loading={loading}>
+          <Button onClick={() => onSubmit(respuestas)} loading={loading} disabled={faltan > 0}>
             Enviar postulación
           </Button>
         </>
       }
     >
-      <p className="text-sm text-fg-secondary">
-        Vas a postular a <strong>{titulo}</strong>. La organización revisará tu perfil y te notificará por correo.
+      <p className="text-sm text-fg-secondary [text-wrap:pretty]">
+        Vas a postular a <strong className="text-fg">{titulo}</strong>. La organización revisará tu perfil y te notificará por correo.
       </p>
       {preguntas.length > 0 && (
-        <div className="mt-5 space-y-4 border-t border-border pt-4">
-          <p className="text-sm font-semibold text-fg">La organización pide responder antes de postular:</p>
-          {preguntas.map((q) => (
-            <Field key={q.id} label={q.texto} required={q.obligatoria}>
-              {(id) =>
-                q.tipo === "si_no" ? (
-                  <Select
-                    id={id}
-                    required={q.obligatoria}
-                    value={respuestas[q.id] ?? ""}
-                    onChange={(e) => setRespuestas((r) => ({ ...r, [q.id]: e.target.value }))}
-                    options={["Sí", "No"]}
-                    placeholder="Selecciona"
-                  />
-                ) : q.tipo === "alternativas" ? (
-                  <Select
-                    id={id}
-                    required={q.obligatoria}
-                    value={respuestas[q.id] ?? ""}
-                    onChange={(e) => setRespuestas((r) => ({ ...r, [q.id]: e.target.value }))}
-                    options={q.opciones}
-                    placeholder="Selecciona"
-                  />
-                ) : (
-                  <Textarea
-                    id={id}
-                    required={q.obligatoria}
-                    maxLength={1000}
-                    value={respuestas[q.id] ?? ""}
-                    onChange={(e) => setRespuestas((r) => ({ ...r, [q.id]: e.target.value }))}
-                    placeholder="Tu respuesta"
-                  />
-                )
-              }
-            </Field>
-          ))}
-        </div>
+        <section className="mt-5 border-t-[1.5px] border-dashed border-tinta/20 pt-5">
+          <h3 className="text-sm font-semibold text-fg">Preguntas de la organización</h3>
+          <p className="mt-0.5 text-xs text-fg-secondary">Solo la organización verá tus respuestas.</p>
+          <ol className="mt-5 space-y-6">
+            {preguntas.map((q) => {
+              const varias = q.tipo === "alternativas" && !!q.multiple;
+              const opciones = q.tipo === "si_no" ? ["Sí", "No"] : q.opciones;
+              const elegidas = (respuestas[q.id] ?? "").split("\n").filter(Boolean);
+              // Dos columnas solo si todas las alternativas son cortas; si no, una por fila para leerlas enteras.
+              const columnas = q.tipo === "si_no" || opciones.every((o) => o.length <= 26);
+              return (
+                <li key={q.id}>
+                  <fieldset>
+                    <legend className="text-sm font-medium text-fg [text-wrap:pretty]">{q.texto}</legend>
+                    <p className="mt-0.5 text-xs text-fg-muted">
+                      {q.obligatoria ? "Obligatoria" : "Opcional"}
+                      {q.tipo !== "texto" && (varias ? " · Puedes marcar varias" : " · Elige una")}
+                    </p>
+                    <div className="mt-2.5">
+                      {q.tipo === "texto" ? (
+                        <Textarea
+                          aria-label={q.texto}
+                          required={q.obligatoria}
+                          maxLength={1000}
+                          value={respuestas[q.id] ?? ""}
+                          onChange={(e) => responder(q.id, e.target.value)}
+                          placeholder="Escribe tu respuesta"
+                          className="min-h-24"
+                        />
+                      ) : (
+                        <div className={cn("grid gap-2", columnas && "sm:grid-cols-2")}>
+                          {opciones.map((op) => (
+                            <OpcionRespuesta
+                              key={op}
+                              tipo={varias ? "checkbox" : "radio"}
+                              name={`pregunta-${q.id}`}
+                              label={op}
+                              checked={varias ? elegidas.includes(op) : respuestas[q.id] === op}
+                              onChange={() => {
+                                if (!varias) return responder(q.id, op);
+                                // Se guardan en el orden de las alternativas, separadas por salto de línea.
+                                const next = elegidas.includes(op) ? elegidas.filter((x) => x !== op) : [...elegidas, op];
+                                responder(q.id, opciones.filter((o) => next.includes(o)).join("\n"));
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </fieldset>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
       )}
     </Modal>
+  );
+}
+
+/** Alternativa como tarjeta seleccionable; el input nativo (oculto) conserva teclado y lectores de pantalla. */
+function OpcionRespuesta({
+  tipo,
+  name,
+  label,
+  checked,
+  onChange,
+}: {
+  tipo: "radio" | "checkbox";
+  name: string;
+  label: string;
+  checked: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <label
+      className={cn(
+        "flex min-h-11 cursor-pointer items-start gap-3 rounded-md border-[1.5px] px-3.5 py-2.5 text-sm transition-colors duration-150",
+        "has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand",
+        checked ? "border-tinta bg-brand-soft text-fg" : "border-tinta/20 bg-surface text-fg-secondary hover:border-tinta/50 hover:text-fg",
+      )}
+    >
+      <input type={tipo} name={name} checked={checked} onChange={onChange} className="sr-only" />
+      <span
+        aria-hidden
+        className={cn(
+          "mt-0.5 grid h-4 w-4 shrink-0 place-items-center border-[1.5px] transition-colors duration-150",
+          tipo === "radio" ? "rounded-full" : "rounded-[4px]",
+          checked ? "border-brand bg-brand text-white" : "border-tinta/40 bg-surface",
+        )}
+      >
+        {checked && (tipo === "radio" ? <span className="h-1.5 w-1.5 rounded-full bg-white" /> : <Check className="h-3 w-3" strokeWidth={3} />)}
+      </span>
+      <span className="min-w-0 [overflow-wrap:anywhere] [text-wrap:pretty]">{label}</span>
+    </label>
   );
 }

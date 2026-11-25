@@ -120,7 +120,7 @@ export function Field({
   );
 }
 
-export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
+export function Input({ className, ...props }: React.ComponentProps<"input">) {
   return <input className={cn(CONTROL, "h-11", className)} {...props} />;
 }
 

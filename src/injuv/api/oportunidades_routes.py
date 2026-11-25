@@ -11,7 +11,7 @@ from injuv.api.deps import CurrentUser, DbSession, MemberOrganization, OptionalU
 from injuv.db.models import Asistencia, Oportunidad, Organizacion, Postulacion, Usuario
 from injuv.schemas.oportunidades import AsistenciaDiaBody, CorreoMasivoBody, EncargadosBody, EstadoOportunidadBody, FechasBody, OportunidadBody, PostularBody
 from injuv.security.rbac import is_admin, normalize_role
-from injuv.services import files, mailer, serializers
+from injuv.services import files, mailer, notificaciones, serializers
 from injuv.services.catalogo import ESTADO_DECLINADA, ESTADOS_OPORTUNIDAD_ABIERTOS, rechazo_participacion
 
 router = APIRouter(prefix="/oportunidades", tags=["Oportunidades"])
@@ -233,6 +233,15 @@ def crear(body: OportunidadBody, db: DbSession, org: OwnOrganization) -> dict[st
     _apply_body(op, body)
     op.encargados_ids = _encargados_validos(db, org, body.encargados_ids)
     db.add(op)
+    db.flush()
+    notificaciones.notificar_varios(
+        db,
+        set(op.encargados_ids) - {org.id_usuario_org},
+        "encargado_asignado",
+        "Te asignaron un voluntariado",
+        f"«{op.titulo}» quedó a tu cargo",
+        f"/organizacion/oportunidades/{op.id}",
+    )
     db.commit()
     db.refresh(op)
     return _serialize(db, op)
@@ -246,9 +255,18 @@ def actualizar(
     org = ensure_can_manage(db, op, user, solo_admin_org=True)
     cambios = _cambios_de_fecha(op, {c: getattr(body, c) for c in _CAMPOS_FECHA})
     _no_en_el_pasado({c: nuevo for c, (_, nuevo) in cambios.items()})
+    anteriores = set(op.encargados_ids or [])
     encargados = _encargados_validos(db, org, body.encargados_ids)
     _apply_body(op, body)
     op.encargados_ids = encargados
+    notificaciones.notificar_varios(
+        db,
+        set(encargados) - anteriores - {user.id},
+        "encargado_asignado",
+        "Te asignaron un voluntariado",
+        f"«{op.titulo}» quedó a tu cargo",
+        f"/organizacion/oportunidades/{op.id}",
+    )
     db.commit()
     _avisar_cambio_fechas(db, op, cambios, None, background)
     return _serialize(db, op)
@@ -427,8 +445,13 @@ def _validar_respuestas(op: Oportunidad, respuestas: dict[str, str]) -> dict[str
         tipo = q.get("tipo")
         if tipo == "si_no" and resp not in ("Sí", "No"):
             raise HTTPException(status.HTTP_400_BAD_REQUEST, f'La respuesta a "{q.get("texto", "")}" debe ser Sí o No')
-        if tipo == "alternativas" and resp not in (q.get("opciones") or []):
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, f'La respuesta a "{q.get("texto", "")}" no es una de las alternativas')
+        if tipo == "alternativas":
+            opciones = q.get("opciones") or []
+            # Selección múltiple: varias alternativas separadas por salto de línea (una sola también vale).
+            elegidas = list(dict.fromkeys(x.strip() for x in resp.split("\n") if x.strip())) if q.get("multiple") else [resp]
+            if not elegidas or any(x not in opciones for x in elegidas):
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, f'La respuesta a "{q.get("texto", "")}" no es una de las alternativas')
+            resp = "\n".join(elegidas)
         limpias[pid] = resp
     return limpias
 
@@ -463,7 +486,16 @@ def actualizar_encargados(
     Solo el administrador de la organización asigna tutores, y deben ser integrantes."""
     op = get_oportunidad_or_404(db, oportunidad_id)
     org = ensure_can_manage(db, op, user, solo_admin_org=True)
+    anteriores = set(op.encargados_ids or [])
     op.encargados_ids = _encargados_validos(db, org, body.encargados_ids)
+    notificaciones.notificar_varios(
+        db,
+        set(op.encargados_ids) - anteriores - {user.id},
+        "encargado_asignado",
+        "Te asignaron un voluntariado",
+        f"«{op.titulo}» quedó a tu cargo",
+        f"/organizacion/oportunidades/{op.id}",
+    )
     db.commit()
     return _encargados_detalle(db, op, org)
 
@@ -521,6 +553,23 @@ def postular(
             op.estado = "cerrada"
     db.commit()
     org = db.get(Organizacion, op.organizacion_id)
+    notificaciones.notificar(
+        db,
+        org.id_usuario_org if org else None,
+        "nueva_postulacion",
+        "Nueva postulación",
+        f"{(user.nombre or 'Un voluntario').strip()} postuló a «{op.titulo}»",
+        f"/organizacion/oportunidades/{op.id}",
+    )
+    notificaciones.notificar(
+        db,
+        user.id,
+        "postulacion_enviada",
+        "Postulación enviada",
+        f"Tu postulación a «{op.titulo}» fue recibida por {(org.nombre if org else 'la organización') or 'la organización'}",
+        "/perfil",
+    )
+    db.commit()
     background.add_task(
         mailer.notify_postulacion_creada,
         user.email,

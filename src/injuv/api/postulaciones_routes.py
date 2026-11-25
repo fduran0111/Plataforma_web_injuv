@@ -24,7 +24,7 @@ from injuv.schemas.postulaciones import (
 )
 from injuv.security.rbac import is_admin
 from injuv.services import certificado as certificado_service
-from injuv.services import files, mailer, serializers
+from injuv.services import files, mailer, notificaciones, serializers
 from injuv.services.catalogo import ESTADO_DECLINADA, rechazo_participacion, voluntariado_terminado
 
 router = APIRouter(prefix="/postulaciones", tags=["Postulaciones"])
@@ -153,6 +153,15 @@ def cambiar_estado(
     if anterior != body.estado:
         u = db.get(Usuario, p.usuario_id)
         if u:
+            notificaciones.notificar(
+                db,
+                u.id,
+                "estado_postulacion",
+                "Cambió el estado de tu postulación",
+                f"«{op.titulo}»: de «{anterior or '—'}» a «{body.estado}»",
+                "/perfil",
+            )
+            db.commit()
             motivo = body.motivo_no_seleccion_otro or body.motivo_no_seleccion
             background.add_task(mailer.notify_cambio_estado, u.email, u.nombre or "", op.titulo, body.estado, motivo, de)
     return data
@@ -196,6 +205,14 @@ def resena_org(postulacion_id: int, body: ResenaOrgBody, db: DbSession, user: Cu
     p.resena_org_sobre_voluntario = (body.resena or "").strip() or None
     p.calificacion_org = round(body.calificacion, 1) if body.calificacion is not None else None
     p.resena_org_publica = body.es_publica
+    notificaciones.notificar(
+        db,
+        p.usuario_id,
+        "pendiente_calificar",
+        "Tu voluntariado terminó",
+        f"La organización ya te evaluó en «{op.titulo}». Cuéntanos cómo fue tu experiencia",
+        "/perfil",
+    )
     return _touch_and_return(db, p)
 
 

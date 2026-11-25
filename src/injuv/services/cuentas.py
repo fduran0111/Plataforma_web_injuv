@@ -1,12 +1,13 @@
 """Operaciones de cuentas que afectan varias tablas."""
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from injuv.db.models import (
     AcademiaDocumento,
     Noticia,
+    Notificacion,
     Oportunidad,
     Organizacion,
     Postulacion,
@@ -48,6 +49,7 @@ def eliminar_usuario(db: Session, user: Usuario) -> None:
         db.delete(p)
     for s in db.scalars(select(SolicitudOrganizacion).where(SolicitudOrganizacion.id_usuario_org == user.id)):
         db.delete(s)
+    db.execute(delete(Notificacion).where(Notificacion.usuario_id == user.id))
     for s in db.scalars(select(SolicitudOrganizacion).where(SolicitudOrganizacion.revisado_por_admin_id == user.id)):
         s.revisado_por_admin_id = None
     for n in db.scalars(select(Noticia).where(Noticia.autor_id == user.id)):

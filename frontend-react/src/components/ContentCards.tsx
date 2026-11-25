@@ -17,11 +17,16 @@ export function NoticiaCard({ n }: { n: Noticia }) {
           {/* El zoom de entrada (scroll) y el del hover van en capas distintas para no pisarse */}
           <div className="persiana-zoom absolute inset-0">
             {n.imagen ? (
-              // eslint-disable-next-line @next/next/no-img-element -- imagen servida por la API
-              <img src={fileUrl.noticia(n.imagen)} alt="" className="noticia-imagen h-full w-full object-cover" />
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element -- relleno ambiental de la misma foto */}
+                <img aria-hidden src={fileUrl.noticia(n.imagen)} alt="" className="noticia-imagen absolute inset-0 h-full w-full scale-110 object-cover opacity-50 blur-xl saturate-150" />
+                {/* eslint-disable-next-line @next/next/no-img-element -- imagen servida por la API */}
+                <img src={fileUrl.noticia(n.imagen)} alt="" className="noticia-imagen relative h-full w-full object-contain" />
+              </>
             ) : (
-              <div className="noticia-imagen flex h-full items-center justify-center text-tinta/30">
-                <Newspaper className="h-12 w-12" />
+              <div className="noticia-imagen relative h-full bg-brand-soft">
+                <Newspaper aria-hidden strokeWidth={1.25} className="pointer-events-none absolute -bottom-6 -right-4 h-32 w-32 -rotate-12 text-brand/15" />
+                <p className="absolute bottom-4 left-4 font-display text-xl leading-none tracking-[-0.02em] text-brand-dark">Noticia</p>
               </div>
             )}
           </div>
@@ -30,8 +35,8 @@ export function NoticiaCard({ n }: { n: Noticia }) {
           </span>
         </div>
         <div className="flex flex-1 flex-col p-5">
-          <h3 className="line-clamp-2 text-h3 text-fg [overflow-wrap:anywhere] transition-colors duration-200 group-hover:text-brand">{n.titulo}</h3>
-          <p className="mt-2 line-clamp-3 flex-1 text-sm leading-relaxed text-fg-muted [overflow-wrap:anywhere]">{n.resumen || n.contenido}</p>
+          <h3 className="line-clamp-2 text-h3 text-fg [overflow-wrap:anywhere] [text-wrap:balance] transition-colors duration-200 group-hover:text-brand">{n.titulo}</h3>
+          <p className="mt-2 line-clamp-3 flex-1 text-sm leading-relaxed text-fg-secondary [overflow-wrap:anywhere]">{n.resumen || n.contenido}</p>
           <span className="mt-5 flex items-center justify-between border-t border-tinta/10 pt-4 text-sm font-semibold text-tinta">
             Leer noticia
             <span
@@ -43,6 +48,20 @@ export function NoticiaCard({ n }: { n: Noticia }) {
           </span>
         </div>
       </Link>
+    </div>
+  );
+}
+
+export function NoticiaCardSkeleton() {
+  return (
+    <div className="animate-pulse overflow-clip rounded-2xl bg-surface ring-1 ring-tinta/10">
+      <div className="aspect-[4/3] bg-papel-strong" />
+      <div className="p-5">
+        <div className="h-5 w-4/5 rounded-sm bg-papel-strong" />
+        <div className="mt-3 h-4 w-full rounded-sm bg-papel-strong" />
+        <div className="mt-2 h-4 w-2/3 rounded-sm bg-papel-strong" />
+        <div className="mt-6 h-8 w-1/2 rounded-sm bg-papel-strong" />
+      </div>
     </div>
   );
 }
