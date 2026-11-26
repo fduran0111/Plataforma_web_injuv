@@ -62,9 +62,9 @@ AdminUser = Annotated[Usuario, Depends(require_roles("admin"))]
 
 
 def get_own_organization(db: DbSession, user: CurrentUser) -> Organizacion:
-    """Organización administrada por el usuario actual (rol organizacion o admin)."""
-    org = db.scalar(select(Organizacion).where(Organizacion.id_usuario_org == user.id))
-    if not org:
+    """Organización administrada por el usuario: dueña (id_usuario_org) o miembro con rol 'admin'."""
+    org, rol_org = organizacion_de_usuario(db, user)
+    if not org or rol_org != "admin":
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No administras ninguna organización")
     return org
 
@@ -73,15 +73,24 @@ OwnOrganization = Annotated[Organizacion, Depends(get_own_organization)]
 
 
 def organizacion_de_usuario(db: Session, user: Usuario) -> tuple[Organizacion | None, str | None]:
-    """Organización del usuario y su rol en ella: 'admin' (dueño) o 'miembro' (afiliado)."""
+    """Organización del usuario y su rol en ella: 'admin' (dueña o co-administradora) o 'miembro' (tutora)."""
     org = db.scalar(select(Organizacion).where(Organizacion.id_usuario_org == user.id))
     if org:
         return org, "admin"
     if user.organizacion_afiliada:
         org = db.get(Organizacion, user.organizacion_afiliada)
         if org:
-            return org, "miembro"
+            return org, "admin" if user.organizacion_rol == "admin" else "miembro"
     return None, None
+
+
+def es_admin_organizacion(user: Usuario, org: Organizacion | None) -> bool:
+    """Dueña de la organización o miembro afiliado con rol 'admin' (co-administrador)."""
+    if not org:
+        return False
+    return org.id_usuario_org == user.id or (
+        user.organizacion_afiliada == org.id and user.organizacion_rol == "admin"
+    )
 
 
 def get_member_organization(db: DbSession, user: CurrentUser) -> Organizacion:

@@ -9,7 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile,
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 
-from injuv.api.deps import CurrentUser, DbSession
+from injuv.api.deps import CurrentUser, DbSession, es_admin_organizacion
 from injuv.api.oportunidades_routes import ensure_can_manage, ensure_can_view
 from injuv.db.models import Oportunidad, Organizacion, Postulacion, Usuario
 from injuv.schemas.postulaciones import (
@@ -294,7 +294,7 @@ def enviar_certificado(postulacion_id: int, body: EnviarCertificadoBody, db: DbS
 def correo_postulante(postulacion_id: int, body: CorreoPostulanteBody, db: DbSession, user: CurrentUser) -> dict[str, str]:
     """Escribe al postulante desde la plataforma (misma regla que el correo masivo)."""
     p, op, org = _managed(db, postulacion_id, user)
-    if not is_admin(user.rol) and not (org and org.id_usuario_org == user.id):
+    if not is_admin(user.rol) and not es_admin_organizacion(user, org):
         # Un tutor solo escribe a los voluntarios que participan en su voluntariado.
         if p.estado != "Seleccionado" or p.estado_confirmacion == "No confirmado":
             raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo puedes escribir a voluntarios seleccionados")

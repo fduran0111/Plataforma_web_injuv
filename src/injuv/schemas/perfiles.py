@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, HttpUrl, field_validator
 
@@ -75,3 +76,7 @@ class SolicitudOrganizacionBody(BaseModel):
 
 class MiembroBody(BaseModel):
     email: EmailStr
+
+
+class MiembroRolBody(BaseModel):
+    rol: Literal["admin", "miembro"]

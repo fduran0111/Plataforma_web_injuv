@@ -124,7 +124,11 @@ export default function AdminUsuariosPage() {
                         · {formatRut(u.rut)} · registro {formatDate(u.created_at)}
                       </span>
                     </p>
-                    {u.organizacion && <p className="truncate text-xs font-medium text-brand">Administra: {u.organizacion.nombre}</p>}
+                    {u.organizacion && (
+                      <p className="truncate text-xs font-medium text-brand">
+                        {u.organizacion.rol === "miembro" ? "Miembro de" : "Administra"}: {u.organizacion.nombre}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="hidden min-w-0 text-sm lg:block">
@@ -189,7 +193,11 @@ export default function AdminUsuariosPage() {
           )}
           {rolModal?.organizacion && nuevoRol === "organizacion" && (
             <p className="text-sm text-fg-muted">
-              Ya administra <strong>{rolModal.organizacion.nombre}</strong>.
+              {rolModal.organizacion.rol === "miembro" ? (
+                <>Es miembro de <strong>{rolModal.organizacion.nombre}</strong>; al guardar quedará como administradora principal.</>
+              ) : (
+                <>Ya administra <strong>{rolModal.organizacion.nombre}</strong>.</>
+              )}
             </p>
           )}
         </div>
