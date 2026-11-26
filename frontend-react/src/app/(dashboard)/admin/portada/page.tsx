@@ -3,6 +3,7 @@
 import { ArrowDown, ArrowRight, ArrowUp, Crop, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { useRef, useState } from "react";
+import ResenasPortada from "@/components/admin/ResenasPortada";
 import RecortarFoto from "@/components/perfil/RecortarFoto";
 import { Alert, Button, Card, ConfirmModal, Field, Input, Modal, Spinner, Tabs, Textarea } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
@@ -220,7 +221,7 @@ export default function AdminPortadaPage() {
   };
   const set = (k: string, v: string | boolean) => setForm({ ...f, [k]: v });
   const [guardando, setGuardando] = useState(false);
-  const [vista, setVista] = useState<"portada" | "acceso">("portada");
+  const [vista, setVista] = useState<"portada" | "acceso" | "resenas">("portada");
   const pendiente = form !== null;
 
   const guardar = async () => {
@@ -280,10 +281,11 @@ export default function AdminPortadaPage() {
         tabs={[
           { value: "portada", label: "Portada" },
           { value: "acceso", label: "Inicio de sesión y registro" },
+          { value: "resenas", label: "Reseñas del inicio" },
         ]}
       />
 
-      {vista === "acceso" ? (
+      {vista === "resenas" ? <ResenasPortada /> : vista === "acceso" ? (
         <>
           <div className="grid gap-6 lg:grid-cols-2">
             <Card className="p-6">

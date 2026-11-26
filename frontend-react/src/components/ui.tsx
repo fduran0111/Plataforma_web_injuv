@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, EyeOff, Loader2, Star, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, Star, X } from "lucide-react";
 import * as m from "motion/react-m";
 import Link from "next/link";
 import { useEffect, useId, useState } from "react";
@@ -446,6 +446,46 @@ export function StatCard({
         </div>
       </div>
     </Card>
+  );
+}
+
+/** Números de página a mostrar: primera, última y vecinas de la actual, con "…" en los saltos. */
+function paginasVisibles(actual: number, total: number): (number | "…")[] {
+  const set = new Set([1, total, actual - 1, actual, actual + 1].filter((n) => n >= 1 && n <= total));
+  const orden = [...set].sort((a, b) => a - b);
+  return orden.flatMap((n, i) => (i > 0 && n - orden[i - 1] > 1 ? (["…", n] as const) : ([n] as const)));
+}
+
+export function Paginacion({ pagina, total, onChange, className }: { pagina: number; total: number; onChange: (p: number) => void; className?: string }) {
+  if (total <= 1) return null;
+  const btn =
+    "inline-flex h-9 min-w-9 items-center justify-center gap-1 rounded-full px-3 text-sm font-semibold transition-[background-color,color,transform] duration-150 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:pointer-events-none disabled:opacity-35";
+  return (
+    <nav aria-label="Paginación" className={cn("flex flex-wrap items-center justify-center gap-1", className)}>
+      <button type="button" className={cn(btn, "text-fg-secondary hover:bg-tinta/[0.06]")} disabled={pagina <= 1} onClick={() => onChange(pagina - 1)}>
+        <ChevronLeft className="h-4 w-4" /> Anterior
+      </button>
+      {paginasVisibles(pagina, total).map((n, i) =>
+        n === "…" ? (
+          <span key={`e${i}`} className="px-1 text-sm text-fg-muted" aria-hidden>
+            …
+          </span>
+        ) : (
+          <button
+            key={n}
+            type="button"
+            aria-current={n === pagina ? "page" : undefined}
+            className={cn(btn, "tabular-nums", n === pagina ? "bg-tinta text-papel" : "text-fg-secondary hover:bg-tinta/[0.06]")}
+            onClick={() => onChange(n)}
+          >
+            {n}
+          </button>
+        ),
+      )}
+      <button type="button" className={cn(btn, "text-fg-secondary hover:bg-tinta/[0.06]")} disabled={pagina >= total} onClick={() => onChange(pagina + 1)}>
+        Siguiente <ChevronRight className="h-4 w-4" />
+      </button>
+    </nav>
   );
 }
 

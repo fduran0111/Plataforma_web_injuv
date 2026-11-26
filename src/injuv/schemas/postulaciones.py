@@ -51,6 +51,11 @@ class VisibilidadBody(BaseModel):
     es_publica: bool
 
 
+class ReporteResenaBody(BaseModel):
+    motivo: Literal["ofensivo", "falso", "datos_personales", "spam", "otro"]
+    detalle: str | None = Field(None, max_length=500)
+
+
 class EnviarCertificadoBody(BaseModel):
     email: str | None = None
 
