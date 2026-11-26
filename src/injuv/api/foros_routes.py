@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 
-from injuv.api.deps import CurrentUser, DbSession
+from injuv.api.deps import CurrentUser, DbSession, es_admin_organizacion
 from injuv.api.oportunidades_routes import get_oportunidad_or_404
 from injuv.db.models import ForoMensaje, Oportunidad, Organizacion, Postulacion, Usuario
 from injuv.security.rbac import is_admin
@@ -31,7 +31,7 @@ class FijarBody(BaseModel):
 
 def _es_staff(op: Oportunidad, org: Organizacion | None, user: Usuario) -> bool:
     """Admin INJUV, administrador de la organización o tutor (integrante encargado) del voluntariado."""
-    if is_admin(user.rol) or (org and org.id_usuario_org == user.id):
+    if is_admin(user.rol) or es_admin_organizacion(user, org):
         return True
     return bool(org and user.organizacion_afiliada == org.id and user.id in (op.encargados_ids or []))
 

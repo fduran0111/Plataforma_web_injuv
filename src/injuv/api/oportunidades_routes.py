@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import Text, and_, cast, func, or_, select, update
 
-from injuv.api.deps import CurrentUser, DbSession, MemberOrganization, OptionalUser, OwnOrganization
+from injuv.api.deps import CurrentUser, DbSession, MemberOrganization, OptionalUser, OwnOrganization, es_admin_organizacion
 from injuv.db.models import Asistencia, Oportunidad, Organizacion, Postulacion, Usuario
 from injuv.schemas.oportunidades import AsistenciaDiaBody, CorreoMasivoBody, EncargadosBody, EstadoOportunidadBody, FechasBody, OportunidadBody, PostularBody
 from injuv.security.rbac import is_admin, normalize_role
@@ -69,7 +69,7 @@ def ensure_can_manage(db: DbSession, op: Oportunidad, user: Usuario, solo_admin_
     """Admin INJUV, administrador de la organización ("super tutor") o, salvo `solo_admin_org`, un integrante
     encargado del voluntariado ("tutor": asistencia, horas, reseñas y correo a sus voluntarios)."""
     org = db.get(Organizacion, op.organizacion_id)
-    if is_admin(user.rol) or (org and org.id_usuario_org == user.id):
+    if is_admin(user.rol) or es_admin_organizacion(user, org):
         return org
     if org and not solo_admin_org and user.organizacion_afiliada == org.id and user.id in (op.encargados_ids or []):
         return org
@@ -85,7 +85,7 @@ def ensure_can_view(db: DbSession, op: Oportunidad, user: Usuario) -> Organizaci
     """Lectura del voluntariado y sus postulantes: admin INJUV, administrador de la organización o un
     integrante encargado (tutor) de ese voluntariado."""
     org = db.get(Organizacion, op.organizacion_id)
-    if is_admin(user.rol) or (org and org.id_usuario_org == user.id):
+    if is_admin(user.rol) or es_admin_organizacion(user, org):
         return org
     if org and user.organizacion_afiliada == org.id and user.id in (op.encargados_ids or []):
         return org
@@ -175,7 +175,7 @@ def listar(
 def listar_de_mi_organizacion(db: DbSession, org: MemberOrganization, user: CurrentUser) -> list[dict[str, Any]]:
     """El administrador ve todos los voluntariados de su organización; un tutor, solo los que tiene a cargo."""
     lista = listar(db, estado="todas", organizacion_id=org.id, limit=500)
-    if org.id_usuario_org == user.id:
+    if es_admin_organizacion(user, org):
         return lista
     return [op for op in lista if user.id in (op.get("encargados_ids") or [])]
 
@@ -553,14 +553,24 @@ def postular(
             op.estado = "cerrada"
     db.commit()
     org = db.get(Organizacion, op.organizacion_id)
-    notificaciones.notificar(
-        db,
-        org.id_usuario_org if org else None,
-        "nueva_postulacion",
-        "Nueva postulación",
-        f"{(user.nombre or 'Un voluntario').strip()} postuló a «{op.titulo}»",
-        f"/organizacion/oportunidades/{op.id}",
-    )
+    admin_ids = {org.id_usuario_org} if org and org.id_usuario_org else set()
+    if org:
+        admin_ids |= set(
+            db.scalars(
+                select(Usuario.id).where(
+                    Usuario.organizacion_afiliada == org.id, Usuario.organizacion_rol == "admin"
+                )
+            )
+        )
+    for admin_id in admin_ids:
+        notificaciones.notificar(
+            db,
+            admin_id,
+            "nueva_postulacion",
+            "Nueva postulación",
+            f"{(user.nombre or 'Un voluntario').strip()} postuló a «{op.titulo}»",
+            f"/organizacion/oportunidades/{op.id}",
+        )
     notificaciones.notificar(
         db,
         user.id,
@@ -597,7 +607,7 @@ def correo_masivo(oportunidad_id: int, body: CorreoMasivoBody, db: DbSession, us
     )
     if body.filtro_estado != "todos":
         stmt = stmt.where(Postulacion.estado == body.filtro_estado)
-    if not is_admin(user.rol) and not (org and org.id_usuario_org == user.id):
+    if not is_admin(user.rol) and not es_admin_organizacion(user, org):
         # Un tutor solo escribe a los voluntarios que participan en su voluntariado.
         stmt = stmt.where(Postulacion.estado == "Seleccionado", Postulacion.estado_confirmacion != "No confirmado")
     destinatarios = db.execute(stmt).all()

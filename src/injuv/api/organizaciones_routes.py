@@ -10,7 +10,7 @@ from sqlalchemy import and_, func, or_, select
 
 from injuv.api.deps import CurrentUser, DbSession, MemberOrganization, OwnOrganization
 from injuv.db.models import Oportunidad, Organizacion, Postulacion, ReporteResena, SolicitudOrganizacion, Usuario
-from injuv.schemas.perfiles import MiembroBody, OrganizacionBody, SolicitudOrganizacionBody
+from injuv.schemas.perfiles import MiembroBody, MiembroRolBody, OrganizacionBody, SolicitudOrganizacionBody
 from injuv.services import files, serializers
 from injuv.services.catalogo import limpiar_rut
 
@@ -300,14 +300,19 @@ def _miembro(u: Usuario) -> dict[str, Any]:
         "email": u.email or "",
         "tiene_foto": bool(u.foto_perfil),
         "foto_version": u.foto_perfil,
+        "rol": u.organizacion_rol if u.organizacion_rol in ("admin", "miembro") else "miembro",
     }
 
 
 @router.get("/mia/miembros")
-def listar_miembros(db: DbSession, org: OwnOrganization) -> dict[str, Any]:
+def listar_miembros(db: DbSession, org: OwnOrganization, user: CurrentUser) -> dict[str, Any]:
     admin = db.get(Usuario, org.id_usuario_org) if org.id_usuario_org else None
     miembros = db.scalars(select(Usuario).where(Usuario.organizacion_afiliada == org.id).order_by(Usuario.nombre))
-    return {"admin": _miembro(admin) if admin else None, "miembros": [_miembro(u) for u in miembros]}
+    return {
+        "admin": {**_miembro(admin), "rol": "admin"} if admin else None,
+        "miembros": [_miembro(u) for u in miembros],
+        "soy_duena": org.id_usuario_org == user.id,
+    }
 
 
 @router.post("/mia/miembros", status_code=status.HTTP_201_CREATED)
@@ -319,12 +324,25 @@ def agregar_miembro(body: MiembroBody, db: DbSession, org: OwnOrganization) -> d
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Esa cuenta ya es la administradora de la organización")
     if u.organizacion_afiliada == org.id:
         raise HTTPException(status.HTTP_409_CONFLICT, "Esa cuenta ya es miembro de la organización")
-    if u.rol == "admin":
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Una cuenta de administrador INJUV no puede ser miembro")
     if u.organizacion_afiliada or db.scalar(select(Organizacion.id).where(Organizacion.id_usuario_org == u.id)):
         raise HTTPException(status.HTTP_409_CONFLICT, "Esa cuenta ya pertenece a otra organización")
     u.organizacion_afiliada = org.id
-    u.rol = "organizacion"
+    u.organizacion_rol = "miembro"
+    if u.rol != "admin":
+        u.rol = "organizacion"
+    db.commit()
+    return _miembro(u)
+
+
+@router.patch("/mia/miembros/{user_id}")
+def cambiar_rol_miembro(user_id: int, body: MiembroRolBody, db: DbSession, org: OwnOrganization, user: CurrentUser) -> dict[str, Any]:
+    """Promueve un miembro a co-administrador o lo devuelve a tutor. Solo la dueña (id_usuario_org)."""
+    if org.id_usuario_org != user.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo la administradora principal puede designar administradores")
+    u = db.get(Usuario, user_id)
+    if not u or u.organizacion_afiliada != org.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ese usuario no es miembro de la organización")
+    u.organizacion_rol = body.rol
     db.commit()
     return _miembro(u)
 
@@ -335,6 +353,7 @@ def quitar_miembro(user_id: int, db: DbSession, org: OwnOrganization) -> None:
     if not u or u.organizacion_afiliada != org.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Ese usuario no es miembro de la organización")
     u.organizacion_afiliada = None
+    u.organizacion_rol = "miembro"
     if u.rol == "organizacion":
         u.rol = "user"
     db.commit()
@@ -352,7 +371,7 @@ def listar_integrantes(db: DbSession, org: MemberOrganization) -> list[dict[str,
             "apellido": (u.apellido or "").strip(),
             "email": u.email or "",
             "telefono": u.telefono or "",
-            "rol": "admin" if u is admin else "miembro",
+            "rol": "admin" if u is admin or u.organizacion_rol == "admin" else "miembro",
         }
         for u in ([admin] if admin else []) + miembros
     ]

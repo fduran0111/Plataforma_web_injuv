@@ -108,12 +108,17 @@ def estadisticas(db: DbSession, _: AdminUser, anio: int | None = None) -> dict[s
 
 @router.get("/usuarios")
 def usuarios(db: DbSession, _: AdminUser) -> list[dict[str, Any]]:
-    orgs = {o.id_usuario_org: o for o in db.scalars(select(Organizacion).where(Organizacion.id_usuario_org.is_not(None)))}
+    todas = list(db.scalars(select(Organizacion)))
+    duenos = {o.id_usuario_org: o for o in todas if o.id_usuario_org}
+    por_id = {o.id: o for o in todas}
     result = []
     for u in db.scalars(select(Usuario).order_by(Usuario.created_at.desc().nullslast(), Usuario.id.desc())):
         data = serializers.usuario(u)
-        org = orgs.get(u.id)
-        data["organizacion"] = {"id": org.id, "nombre": org.nombre} if org else None
+        org, rol_org = duenos.get(u.id), "admin"
+        if not org and u.organizacion_afiliada:
+            org = por_id.get(u.organizacion_afiliada)
+            rol_org = u.organizacion_rol if u.organizacion_rol in ("admin", "miembro") else "miembro"
+        data["organizacion"] = {"id": org.id, "nombre": org.nombre, "rol": rol_org} if org else None
         result.append(data)
     return result
 
@@ -158,12 +163,14 @@ def cambiar_rol(user_id: int, body: RolBody, db: DbSession, admin: AdminUser) ->
                     anterior.rol = "user"
             org.id_usuario_org = u.id
             u.organizacion_afiliada = None
+            u.organizacion_rol = "miembro"
         elif not actual and not u.organizacion_afiliada:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Asigna una organización al usuario")
     elif body.rol == "user" and actual:
         actual.id_usuario_org = None
     if body.rol != "organizacion":
         u.organizacion_afiliada = None
+        u.organizacion_rol = "miembro"
     u.rol = body.rol
     db.commit()
     org = db.scalar(select(Organizacion).where(Organizacion.id_usuario_org == u.id))
