@@ -1,14 +1,14 @@
 "use client";
 
-import { ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
+import { ShieldCheck, ShieldMinus, ShieldPlus, Trash2, UserPlus, Users } from "lucide-react";
 import { useState } from "react";
 import { Alert, Avatar, Badge, Button, Card, ErrorState, Field, Input, PageHeader, Spinner } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { apiFetch, fileUrl } from "@/lib/api";
 import { useToast } from "@/providers/ToastProvider";
 
-type Integrante = { id: number; nombre: string; email: string; tiene_foto: boolean; foto_version: string | null };
-type Equipo = { admin: Integrante | null; miembros: Integrante[] };
+type Integrante = { id: number; nombre: string; email: string; tiene_foto: boolean; foto_version: string | null; rol: "admin" | "miembro" };
+type Equipo = { admin: Integrante | null; miembros: Integrante[]; soy_duena: boolean };
 
 function Fila({ p, accion }: { p: Integrante; accion?: React.ReactNode }) {
   return (
@@ -30,6 +30,7 @@ export default function EquipoPage() {
   const [agregando, setAgregando] = useState(false);
   const [errorForm, setErrorForm] = useState<string | null>(null);
   const [quitando, setQuitando] = useState<number | null>(null);
+  const [cambiandoRol, setCambiandoRol] = useState<number | null>(null);
 
   async function agregar(e: React.FormEvent) {
     e.preventDefault();
@@ -61,11 +62,24 @@ export default function EquipoPage() {
     }
   }
 
+  async function cambiarRol(p: Integrante, rol: "admin" | "miembro") {
+    setCambiandoRol(p.id);
+    try {
+      await apiFetch(`/organizaciones/mia/miembros/${p.id}`, { method: "PATCH", body: { rol } });
+      toast(rol === "admin" ? `${p.nombre || p.email} ahora es administrador` : `${p.nombre || p.email} volvió a ser miembro`);
+      reload();
+    } catch (err) {
+      toast((err as Error).message, "error");
+    } finally {
+      setCambiandoRol(null);
+    }
+  }
+
   return (
     <>
       <PageHeader
         title="Equipo"
-        description="Agrega miembros a tu organización. Los miembros gestionan los voluntariados (publicar, editar, postulantes, certificados) y la academia, pero no pueden modificar el perfil de la organización, las reseñas ni el equipo."
+        description="Los miembros (tutores) gestionan los voluntariados que se les asignan: asistencia, horas, reseñas y correo a sus voluntarios. Los administradores tienen todos los permisos de la organización; solo la administradora principal puede designarlos."
       />
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <Card className="p-6">
@@ -81,7 +95,7 @@ export default function EquipoPage() {
                   p={data.admin}
                   accion={
                     <Badge tone="blue">
-                      <ShieldCheck className="h-3.5 w-3.5" /> Administrador
+                      <ShieldCheck className="h-3.5 w-3.5" /> Administradora principal
                     </Badge>
                   }
                 />
@@ -92,7 +106,23 @@ export default function EquipoPage() {
                   p={m}
                   accion={
                     <div className="flex items-center gap-2">
-                      <Badge tone="slate">Miembro</Badge>
+                      {m.rol === "admin" ? (
+                        <Badge tone="blue">
+                          <ShieldCheck className="h-3.5 w-3.5" /> Administrador
+                        </Badge>
+                      ) : (
+                        <Badge tone="slate">Miembro</Badge>
+                      )}
+                      {data.soy_duena &&
+                        (m.rol === "admin" ? (
+                          <Button size="sm" variant="ghost" loading={cambiandoRol === m.id} onClick={() => cambiarRol(m, "miembro")} aria-label="Quitar rol de administrador" title="Quitar rol de administrador">
+                            <ShieldMinus className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="ghost" loading={cambiandoRol === m.id} onClick={() => cambiarRol(m, "admin")} aria-label="Hacer administrador" title="Hacer administrador">
+                            <ShieldPlus className="h-4 w-4" />
+                          </Button>
+                        ))}
                       <Button size="sm" variant="ghost" className="text-red-600" loading={quitando === m.id} onClick={() => quitar(m)} aria-label="Quitar miembro">
                         <Trash2 className="h-4 w-4" />
                       </Button>

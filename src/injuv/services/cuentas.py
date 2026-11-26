@@ -32,6 +32,7 @@ def eliminar_organizacion(db: Session, org: Organizacion) -> None:
         db.delete(doc)
     for miembro in db.scalars(select(Usuario).where(Usuario.organizacion_afiliada == org.id)):
         miembro.organizacion_afiliada = None
+        miembro.organizacion_rol = "miembro"
         if miembro.rol == "organizacion":
             miembro.rol = "user"
     files.delete("logos_organizaciones", org.logo_filename)
