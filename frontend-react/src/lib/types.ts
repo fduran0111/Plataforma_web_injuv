@@ -7,6 +7,12 @@ export type CertificadoPersonal = {
   subido_en: string;
 };
 
+export type HabilidadUsuario = {
+  nombre: string;
+  /** Nivel declarado, 0–100. */
+  nivel: number;
+};
+
 export type Usuario = {
   id: number;
   nombre: string;
@@ -20,6 +26,8 @@ export type Usuario = {
   sexo: string;
   fecha_nacimiento: string | null;
   rol: Rol;
+  acerca_de: string;
+  habilidades: HabilidadUsuario[];
   horas_voluntariado: number;
   tiene_foto: boolean;
   foto_version: string | null;

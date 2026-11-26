@@ -36,6 +36,8 @@ class Usuario(Base):
     certificado_personales: Mapped[Any] = mapped_column(JSONB)
     organizacion_afiliada: Mapped[int | None] = mapped_column(Integer)
     organizacion_rol: Mapped[str | None] = mapped_column(String(20), default="miembro", server_default="miembro")
+    acerca_de: Mapped[str | None] = mapped_column(Text)
+    habilidades: Mapped[Any] = mapped_column(JSONB)
     created_at: Mapped[datetime | None] = mapped_column(DateTime)
     foto_perfil: Mapped[str | None] = mapped_column(String(255))
 

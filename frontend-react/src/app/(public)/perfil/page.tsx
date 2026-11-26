@@ -196,6 +196,32 @@ function Perfil({ user }: { user: Usuario }) {
             </div>
           </Card>
 
+          {user.acerca_de && (
+            <Card className="p-6">
+              <h2 className="mb-4 text-xl font-semibold text-fg">Acerca de mí</h2>
+              <p className="whitespace-pre-line text-sm leading-relaxed text-fg-secondary">{user.acerca_de}</p>
+            </Card>
+          )}
+
+          {user.habilidades.length > 0 && (
+            <Card className="p-6">
+              <h2 className="mb-4 text-xl font-semibold text-fg">Habilidades</h2>
+              <div className="space-y-3">
+                {user.habilidades.map((h, i) => (
+                  <div key={`${h.nombre}-${i}`}>
+                    <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
+                      <span className="font-medium text-fg">{h.nombre}</span>
+                      <span className="text-xs tabular-nums text-fg-muted">{h.nivel}%</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-page">
+                      <div className="h-full rounded-full bg-brand" style={{ width: `${h.nivel}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
           <div>
             <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold text-fg">
               <HeartHandshake className="h-5 w-5 text-fg-muted" /> Experiencia de voluntariado

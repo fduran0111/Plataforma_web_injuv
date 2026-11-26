@@ -23,6 +23,8 @@ class PerfilUsuarioBody(BaseModel):
     comuna: str | None = Field(default=None, max_length=100)
     sexo: str | None = Field(default=None, max_length=100)
     fecha_nacimiento: date | None = None
+    acerca_de: str | None = Field(default=None, max_length=1000)
+    habilidades: list[dict] | None = None
 
     _strip = field_validator("*", mode="before")(classmethod(lambda cls, v: _clean(v)))
 

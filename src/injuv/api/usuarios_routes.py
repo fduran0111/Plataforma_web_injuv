@@ -29,7 +29,8 @@ def actualizar_perfil(body: PerfilUsuarioBody, user: CurrentUser, db: DbSession)
     otro = db.scalar(select(Usuario.id).where(func.lower(Usuario.email) == email, Usuario.id != user.id))
     if otro:
         raise HTTPException(status.HTTP_409_CONFLICT, "Ese email ya está en uso por otra cuenta")
-    for field, value in body.model_dump().items():
+    # exclude_unset: clientes que no envíen acerca_de/habilidades no los borran.
+    for field, value in body.model_dump(exclude_unset=True).items():
         setattr(user, field, email if field == "email" else value)
     db.commit()
     return session_payload(db, user)

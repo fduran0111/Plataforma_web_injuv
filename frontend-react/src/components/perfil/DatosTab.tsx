@@ -1,9 +1,9 @@
 "use client";
 
-import { Camera, Trash2 } from "lucide-react";
+import { Camera, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { Alert, Avatar, Button, Card, Field, Input, Modal, PasswordInput, Select } from "@/components/ui";
+import { Alert, Avatar, Button, Card, Field, Input, Modal, PasswordInput, Select, Textarea } from "@/components/ui";
 import UbicacionFields from "@/components/UbicacionFields";
 import RecortarFoto from "@/components/perfil/RecortarFoto";
 import { apiFetch, fileUrl } from "@/lib/api";
@@ -27,7 +27,10 @@ export default function DatosTab({ user }: { user: Usuario }) {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const setHabilidad = (i: number, patch: Partial<{ nombre: string; nivel: number }>) =>
+    setForm((f) => ({ ...f, habilidades: f.habilidades.map((h, j) => (j === i ? { ...h, ...patch } : h)) }));
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
@@ -46,6 +49,11 @@ export default function DatosTab({ user }: { user: Usuario }) {
           comuna: form.comuna || null,
           sexo: form.sexo || null,
           fecha_nacimiento: form.fecha_nacimiento || null,
+          acerca_de: form.acerca_de || null,
+          habilidades: form.habilidades
+            .filter((h) => h.nombre.trim())
+            .slice(0, 10)
+            .map((h) => ({ nombre: h.nombre.trim().slice(0, 60), nivel: Math.max(0, Math.min(100, Math.round(h.nivel || 0))) })),
         },
       });
       setUser(updated);
@@ -160,6 +168,67 @@ export default function DatosTab({ user }: { user: Usuario }) {
             <Field label="Fecha de nacimiento">
               {(id) => <Input id={id} type="date" value={form.fecha_nacimiento ?? ""} onChange={set("fecha_nacimiento")} />}
             </Field>
+            <div className="sm:col-span-2">
+              <Field label="Acerca de mí">
+                {(id) => (
+                  <Textarea
+                    id={id}
+                    value={form.acerca_de}
+                    onChange={set("acerca_de")}
+                    maxLength={1000}
+                    placeholder="Cuéntale a las organizaciones quién eres, qué te motiva y qué experiencia tienes."
+                  />
+                )}
+              </Field>
+            </div>
+            <div className="sm:col-span-2">
+              <Field label="Habilidades">
+                {() => (
+                  <div className="space-y-3">
+                    {form.habilidades.map((h, i) => (
+                      <div key={i} className="flex items-center gap-3">
+                        <Input
+                          value={h.nombre}
+                          maxLength={60}
+                          placeholder="Ej. Primeros auxilios"
+                          onChange={(e) => setHabilidad(i, { nombre: e.target.value })}
+                        />
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={h.nivel}
+                          onChange={(e) => setHabilidad(i, { nivel: Number(e.target.value) })}
+                          className="w-32 shrink-0 accent-brand"
+                          aria-label={`Nivel de ${h.nombre || "habilidad"}`}
+                        />
+                        <span className="w-10 shrink-0 text-right text-xs tabular-nums text-fg-muted">{h.nivel}%</span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          aria-label="Quitar habilidad"
+                          onClick={() => setForm((f) => ({ ...f, habilidades: f.habilidades.filter((_, j) => j !== i) }))}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    {form.habilidades.length < 10 && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setForm((f) => ({ ...f, habilidades: [...f.habilidades, { nombre: "", nivel: 50 }] }))}
+                      >
+                        <Plus className="h-4 w-4" /> Agregar habilidad
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </Field>
+            </div>
             <div className="sm:col-span-2">
               <Button type="submit" loading={saving}>
                 Guardar cambios

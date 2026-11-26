@@ -55,6 +55,12 @@ def usuario(u: Usuario) -> dict[str, Any]:
         "fecha_nacimiento": u.fecha_nacimiento,
         "rol": normalize_role(u.rol),
         "horas_voluntariado": u.hora_voluntariado or 0,
+        "acerca_de": u.acerca_de or "",
+        "habilidades": [
+            {"nombre": str(h.get("nombre", ""))[:60], "nivel": max(0, min(100, int(h.get("nivel", 0) or 0)))}
+            for h in _list(u.habilidades)
+            if isinstance(h, dict) and str(h.get("nombre", "")).strip()
+        ][:10],
         "tiene_foto": bool(u.foto_perfil),
         "foto_version": u.foto_perfil,
         "certificados_personales": [
