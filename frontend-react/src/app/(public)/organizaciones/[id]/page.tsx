@@ -2,11 +2,11 @@
 
 import { Award, CalendarDays, ExternalLink, Globe, Mail, MapPin, Phone, SlidersHorizontal, Users } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Stagger, StaggerItem } from "@/components/home/Stagger";
 import OportunidadCard from "@/components/oportunidades/OportunidadCard";
 import Entrada from "@/components/public/Entrada";
-import { Avatar, Card, EmptyState, ErrorState, Spinner, Stars } from "@/components/ui";
+import { Avatar, Card, EmptyState, ErrorState, Paginacion, Spinner, Stars } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { useOportunidadesPostuladas } from "@/hooks/useMisPostulaciones";
 import { fileUrl } from "@/lib/api";
@@ -34,12 +34,18 @@ export default function OrganizacionPage() {
   const postuladas = useOportunidadesPostuladas();
   const [estadoFiltro, setEstadoFiltro] = useState<FiltroEstado | null>(null);
   const [area, setArea] = useState<string | null>(null);
-  const [visibles, setVisibles] = useState(POR_PAGINA);
+  const [pagina, setPagina] = useState(1);
+  const listaRef = useRef<HTMLDivElement>(null);
   const [verFiltros, setVerFiltros] = useState(false);
   function filtrar(e: FiltroEstado, a: string | null) {
     setEstadoFiltro(e);
     setArea(a);
-    setVisibles(POR_PAGINA);
+    setPagina(1);
+  }
+  function irAPagina(n: number) {
+    setPagina(n);
+    const el = listaRef.current;
+    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 120, behavior: "smooth" });
   }
 
   if (org.loading && !org.data) return <Spinner className="py-32" />;
@@ -58,6 +64,8 @@ export default function OrganizacionPage() {
   const porEstado = estadoActivo === "abiertos" ? abiertas : estadoActivo === "anteriores" ? cerradas : (ops.data ?? []);
   const areas = [...new Set(porEstado.map((op) => op.tipo_de_voluntariado).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
   const filtradas = area ? porEstado.filter((op) => op.tipo_de_voluntariado === area) : porEstado;
+  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / POR_PAGINA));
+  const paginaActual = Math.min(pagina, totalPaginas);
   const ubicacion = [o.comuna, o.ciudad, o.region].filter(Boolean).join(", ");
   const meta = [o.tipo_org, o.area_trabajo].filter(Boolean).join(" · ");
 
@@ -186,29 +194,19 @@ export default function OrganizacionPage() {
                 </div>
                 )}
 
-                <div className="mt-8">
+                <div ref={listaRef} className="mt-8">
                   {!filtradas.length ? (
                     <EmptyState icon={Users} title="No hay voluntariados con estos filtros" />
                   ) : (
-                    <div key={`${estadoActivo}-${area}-${filtradas.length}`} className="space-y-6">
-                      {Array.from({ length: Math.ceil(Math.min(visibles, filtradas.length) / POR_PAGINA) }, (_, t) => (
-                        <Stagger key={t} className="grid gap-6 sm:grid-cols-2" stagger={0.06}>
-                          {filtradas.slice(t * POR_PAGINA, Math.min((t + 1) * POR_PAGINA, visibles)).map((op) => (
-                            <StaggerItem key={op.id} className={`h-full ${op.estado === "cerrada" ? "opacity-80" : ""}`}>
-                              <OportunidadCard op={op} postulado={postuladas.has(op.id)} />
-                            </StaggerItem>
-                          ))}
-                        </Stagger>
+                    <Stagger key={`${estadoActivo}-${area}-${paginaActual}`} className="grid gap-6 sm:grid-cols-2" stagger={0.06}>
+                      {filtradas.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA).map((op) => (
+                        <StaggerItem key={op.id} className={`h-full ${op.estado === "cerrada" ? "opacity-80" : ""}`}>
+                          <OportunidadCard op={op} postulado={postuladas.has(op.id)} />
+                        </StaggerItem>
                       ))}
-                    </div>
+                    </Stagger>
                   )}
-                  {filtradas.length > visibles && (
-                    <div className="mt-8 flex justify-center">
-                      <button type="button" className="ficha" onClick={() => setVisibles((v) => v + POR_PAGINA)}>
-                        Ver más voluntariados <span className="tabular-nums opacity-60">{filtradas.length - visibles}</span>
-                      </button>
-                    </div>
-                  )}
+                  <Paginacion pagina={paginaActual} total={totalPaginas} onChange={irAPagina} className="mt-8" />
                 </div>
               </>
             )}
@@ -305,8 +303,8 @@ function ResenaItem({ r }: { r: ResenaOrganizacion }) {
       <Stars value={r.calificacion} size={14} />
       {r.resena && <blockquote className="mt-2 line-clamp-4 text-sm leading-relaxed text-fg">“{r.resena}”</blockquote>}
       <p className="mt-3 truncate text-xs font-semibold text-fg">{r.usuario_nombre}</p>
-      <p className="truncate text-xs text-fg-muted">
-        {r.oportunidad_titulo} · {formatDate(r.fecha)}
+      <p className="text-xs text-fg-muted">
+        {r.oportunidad_titulo} · <span className="whitespace-nowrap">{formatDate(r.fecha)}</span>
       </p>
     </>
   );
@@ -330,12 +328,12 @@ function ResenasRotativas({ resenas }: { resenas: ResenaOrganizacion[] }) {
   }, [total, pausa, reduced]);
 
   return (
-    <div className="grid" aria-live="polite" onPointerEnter={() => setPausa(true)} onPointerLeave={() => setPausa(false)}>
+    <div className="grid grid-cols-[minmax(0,1fr)]" aria-live="polite" onPointerEnter={() => setPausa(true)} onPointerLeave={() => setPausa(false)}>
       {grupos.map((g, i) => (
         <ul
           key={g[0].postulacion_id}
           aria-hidden={i !== activa}
-          className={`divide-y divide-tinta/10 [grid-area:1/1] transition-opacity ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none ${
+          className={`min-w-0 divide-y divide-tinta/10 [grid-area:1/1] transition-opacity ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none ${
             i === activa ? "opacity-100 delay-[700ms] duration-[1000ms]" : "pointer-events-none opacity-0 duration-[700ms]"
           }`}
         >

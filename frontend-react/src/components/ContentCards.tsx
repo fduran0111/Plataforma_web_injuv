@@ -118,8 +118,12 @@ export function ResenaCard({ r }: { r: ResenaPublica }) {
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-fg">{r.usuario_nombre}</p>
             <p className="truncate text-xs text-fg-muted">
-              {r.oportunidad_titulo} · {r.organizacion_nombre}
+              Para{" "}
+              <Link href={`/organizaciones/${r.organizacion_id}`} className="font-semibold text-brand hover:underline">
+                {r.organizacion_nombre}
+              </Link>
             </p>
+            <p className="truncate text-xs text-fg-muted">{r.oportunidad_titulo}</p>
           </div>
         </figcaption>
       </figure>

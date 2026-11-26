@@ -184,6 +184,7 @@ export type ResenaOrganizacion = {
   calificacion: number | null;
   es_publica: boolean;
   fecha: string | null;
+  reporte_pendiente?: boolean;
 };
 
 export type ResenaPublica = {
@@ -286,8 +287,10 @@ export type FichaPostulante = {
 
 export type ResenaAdmin = PostulacionBase & {
   oportunidad_titulo: string;
+  organizacion_id: number | null;
   organizacion_nombre: string;
   usuario_nombre: string;
+  reportes: { id: number; motivo: string; detalle: string | null; reportado_por_nombre: string; created_at: string }[];
 };
 
 export type PortadaConfig = {
@@ -308,6 +311,7 @@ export type PortadaFoto = { id: number; archivo: string; alt: string; activa?: b
 
 export type PortadaPublica = { config: PortadaConfig; fotos: { inicio: PortadaFoto[]; galeria: PortadaFoto[]; acceso?: PortadaFoto[] } };
 export type PortadaAdmin = PortadaPublica;
+export type PortadaResenasAdmin = { seleccionadas: number[]; resenas: ResenaPublica[] };
 
 export type Notificacion = {
   id: number;

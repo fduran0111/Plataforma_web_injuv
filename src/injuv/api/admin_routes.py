@@ -18,11 +18,13 @@ from injuv.db.models import (
     Noticia,
     Oportunidad,
     Organizacion,
+    PortadaConfig,
     Postulacion,
+    ReporteResena,
     SolicitudOrganizacion,
     Usuario,
 )
-from injuv.services import serializers
+from injuv.services import notificaciones, serializers
 from injuv.services.cuentas import eliminar_organizacion, eliminar_usuario
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -282,19 +284,108 @@ def revisar_solicitud(solicitud_id: int, body: RevisionBody, db: DbSession, admi
 @router.get("/resenas")
 def resenas(db: DbSession, _: AdminUser) -> list[dict[str, Any]]:
     rows = db.execute(
-        select(Postulacion, Oportunidad.titulo, Organizacion.nombre, Usuario)
+        select(Postulacion, Oportunidad.titulo, Organizacion.id, Organizacion.nombre, Usuario)
         .join(Oportunidad, Oportunidad.id == Postulacion.oportunidad_id)
         .outerjoin(Organizacion, Organizacion.id == Oportunidad.organizacion_id)
         .outerjoin(Usuario, Usuario.id == Postulacion.usuario_id)
         .where((Postulacion.resena_usuario.is_not(None)) | (Postulacion.resena_org_sobre_voluntario.is_not(None)))
         .order_by(Postulacion.updated_at.desc().nullslast())
     ).all()
-    return [
+    items = [
         {
             **serializers.postulacion_base(p),
             "oportunidad_titulo": titulo,
+            "organizacion_id": org_id,
             "organizacion_nombre": org or "",
             "usuario_nombre": serializers.nombre_completo(u),
         }
-        for p, titulo, org, u in rows
+        for p, titulo, org_id, org, u in rows
     ]
+    reportes_por_postulacion = _reportes_pendientes(db, [p.id for p, *_ in rows])
+    for item, (p, *_) in zip(items, rows):
+        item["reportes"] = reportes_por_postulacion.get(p.id, [])
+    return items
+
+
+def _reportes_pendientes(db: DbSession, postulacion_ids: list[int]) -> dict[int, list[dict[str, Any]]]:
+    if not postulacion_ids:
+        return {}
+    rows = (
+        db.execute(
+            select(ReporteResena, Usuario)
+            .outerjoin(Usuario, Usuario.id == ReporteResena.reportado_por)
+            .where(ReporteResena.postulacion_id.in_(postulacion_ids), ReporteResena.estado == "pendiente")
+            .order_by(ReporteResena.created_at.desc())
+        )
+        .all()
+    )
+    agrupado: dict[int, list[dict[str, Any]]] = {}
+    for rep, u in rows:
+        agrupado.setdefault(rep.postulacion_id, []).append(
+            {
+                "id": rep.id,
+                "motivo": rep.motivo,
+                "detalle": rep.detalle,
+                "reportado_por_nombre": serializers.nombre_completo(u) if u else "",
+                "created_at": rep.created_at.isoformat() if rep.created_at else None,
+            }
+        )
+    return agrupado
+
+
+def _cerrar_reportes(db: DbSession, p: Postulacion, estado: str, texto: str) -> None:
+    """Marca los reportes pendientes de la reseña y avisa a quienes reportaron."""
+    pendientes = db.scalars(
+        select(ReporteResena).where(ReporteResena.postulacion_id == p.id, ReporteResena.estado == "pendiente")
+    ).all()
+    if not pendientes:
+        return
+    titulo = db.scalar(select(Oportunidad.titulo).where(Oportunidad.id == p.oportunidad_id)) or ""
+    ahora = datetime.now()
+    for rep in pendientes:
+        rep.estado = estado
+        rep.resuelto_at = ahora
+    notificaciones.notificar_varios(
+        db,
+        [rep.reportado_por for rep in pendientes],
+        "reporte_resena",
+        "Revisamos tu reporte",
+        texto.format(titulo=titulo),
+        "/organizacion/resenas",
+    )
+
+
+@router.delete("/resenas/{postulacion_id}", status_code=status.HTTP_204_NO_CONTENT)
+def borrar_resena(postulacion_id: int, tipo: Literal["voluntario", "organizacion"], db: DbSession, _: AdminUser) -> None:
+    p = db.get(Postulacion, postulacion_id)
+    if not p:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Esa reseña no existe")
+    ts = p.updated_at
+    if tipo == "voluntario":
+        p.resena_usuario = None
+        p.calificacion_usuario_org = None
+        p.resena_usuario_publica = None
+        cfg = db.get(PortadaConfig, 1)
+        if cfg and cfg.resenas_ids and postulacion_id in cfg.resenas_ids:
+            cfg.resenas_ids = [i for i in cfg.resenas_ids if i != postulacion_id]
+        _cerrar_reportes(db, p, "resuelto", "Eliminamos la reseña reportada en «{titulo}». Gracias por avisarnos.")
+    else:
+        p.resena_org_sobre_voluntario = None
+        p.calificacion_org = None
+        p.resena_org_publica = None
+    p.updated_at = ts
+    db.commit()
+
+
+@router.post("/resenas/{postulacion_id}/descartar-reporte", status_code=status.HTTP_204_NO_CONTENT)
+def descartar_reporte(postulacion_id: int, db: DbSession, _: AdminUser) -> None:
+    p = db.get(Postulacion, postulacion_id)
+    if not p:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Esa reseña no existe")
+    pendiente = db.scalar(
+        select(func.count(ReporteResena.id)).where(ReporteResena.postulacion_id == postulacion_id, ReporteResena.estado == "pendiente")
+    )
+    if not pendiente:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No hay reportes pendientes para esta reseña")
+    _cerrar_reportes(db, p, "descartado", "La reseña en «{titulo}» no infringe las normas y se mantiene publicada.")
+    db.commit()

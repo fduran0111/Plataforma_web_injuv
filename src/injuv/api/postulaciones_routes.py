@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 
 from injuv.api.deps import CurrentUser, DbSession
 from injuv.api.oportunidades_routes import ensure_can_manage, ensure_can_view
-from injuv.db.models import Oportunidad, Organizacion, Postulacion, Usuario
+from injuv.db.models import Oportunidad, Organizacion, Postulacion, ReporteResena, Usuario
 from injuv.schemas.postulaciones import (
     AsistenciaBody,
     ConfirmacionBody,
@@ -20,6 +20,7 @@ from injuv.schemas.postulaciones import (
     EstadoPostulacionBody,
     ResenaOrgBody,
     ResenaUsuarioBody,
+    ReporteResenaBody,
     VisibilidadBody,
 )
 from injuv.security.rbac import is_admin
@@ -218,11 +219,40 @@ def resena_org(postulacion_id: int, body: ResenaOrgBody, db: DbSession, user: Cu
 
 @router.patch("/{postulacion_id}/visibilidad-resena")
 def visibilidad_resena_usuario(postulacion_id: int, body: VisibilidadBody, db: DbSession, user: CurrentUser) -> dict[str, Any]:
-    """El administrador de la organización (o admin INJUV) decide si la reseña del voluntario es pública."""
-    p, op = _get(db, postulacion_id)
-    ensure_can_manage(db, op, user, solo_admin_org=True)
+    """Solo el equipo INJUV decide si la reseña del voluntario es pública."""
+    if not is_admin(user.rol):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo el equipo INJUV puede cambiar la visibilidad de una reseña")
+    p, _ = _get(db, postulacion_id)
     p.resena_usuario_publica = body.es_publica
     return _touch_and_return(db, p)
+
+
+@router.post("/{postulacion_id}/reportar-resena", status_code=status.HTTP_201_CREATED)
+def reportar_resena(postulacion_id: int, body: ReporteResenaBody, db: DbSession, user: CurrentUser) -> dict[str, Any]:
+    """La organización reporta una reseña del voluntario por contenido indebido; la revisa el equipo INJUV."""
+    p, op = _get(db, postulacion_id)
+    org = ensure_can_view(db, op, user)
+    if not p.resena_usuario:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Esta reseña no tiene comentario")
+    detalle = (body.detalle or "").strip() or None
+    if body.motivo == "otro" and not detalle:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cuéntanos el motivo del reporte")
+    pendiente = db.scalar(
+        select(func.count(ReporteResena.id)).where(ReporteResena.postulacion_id == postulacion_id, ReporteResena.estado == "pendiente")
+    )
+    if pendiente:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Esta reseña ya fue reportada y está en revisión")
+    db.add(ReporteResena(postulacion_id=postulacion_id, reportado_por=user.id, motivo=body.motivo, detalle=detalle))
+    notificaciones.notificar_varios(
+        db,
+        db.scalars(select(Usuario.id).where(Usuario.rol == "admin")).all(),
+        "reporte_resena",
+        "Reseña reportada",
+        f"{org.nombre if org else 'Una organización'} reportó una reseña en «{op.titulo}»",
+        "/admin/resenas",
+    )
+    db.commit()
+    return {"reporte_pendiente": True}
 
 
 @router.post("/{postulacion_id}/certificado")

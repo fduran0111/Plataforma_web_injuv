@@ -11,8 +11,8 @@ from sqlalchemy.exc import DBAPIError
 
 from injuv.api.deps import AdminUser, DbSession
 from injuv.db.models import PortadaConfig, PortadaFoto
-from injuv.schemas.portada import PortadaConfigBody, PortadaFotoPatch, PortadaOrdenBody
-from injuv.services import files
+from injuv.schemas.portada import PortadaConfigBody, PortadaFotoPatch, PortadaOrdenBody, PortadaResenasBody
+from injuv.services import files, resenas as resenas_svc
 
 router = APIRouter(prefix="/portada", tags=["Portada"])
 FOLDER = "portada_fotos"
@@ -163,3 +163,27 @@ def borrar_foto(foto_id: int, db: DbSession, _: AdminUser) -> dict[str, Any]:
     files.delete(FOLDER, archivo)
     files.delete(FOLDER, original)
     return _payload(db, admin=True)
+
+
+@router.get("/resenas")
+def resenas_admin(db: DbSession, _: AdminUser) -> dict[str, Any]:
+    cfg = db.get(PortadaConfig, 1)
+    rows = db.execute(resenas_svc.consulta_publicas()).all()
+    elegibles = {row[0].id for row in rows}
+    ids = [pid for pid in (cfg.resenas_ids or []) if pid in elegibles] if cfg else []
+    return {"seleccionadas": ids, "resenas": [resenas_svc.a_dict(row) for row in rows]}
+
+
+@router.put("/resenas")
+def guardar_resenas(body: PortadaResenasBody, db: DbSession, _: AdminUser) -> dict[str, Any]:
+    rows = db.execute(resenas_svc.consulta_publicas()).all()
+    elegibles = {row[0].id for row in rows}
+    ids = list(dict.fromkeys(body.ids))
+    if any(pid not in elegibles for pid in ids):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Alguna reseña ya no está disponible")
+    c = db.get(PortadaConfig, 1) or PortadaConfig(id=1)
+    c.resenas_ids = ids
+    c.updated_at = datetime.now()
+    db.add(c)
+    db.commit()
+    return {"seleccionadas": ids, "resenas": [resenas_svc.a_dict(row) for row in rows]}

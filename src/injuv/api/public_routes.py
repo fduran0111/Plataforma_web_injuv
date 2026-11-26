@@ -7,8 +7,8 @@ from fastapi import APIRouter, Query
 from sqlalchemy import func, select
 
 from injuv.api.deps import DbSession
-from injuv.db.models import Oportunidad, Organizacion, Postulacion, Usuario
-from injuv.services import serializers
+from injuv.db.models import Oportunidad, Organizacion, PortadaConfig, Postulacion, Usuario
+from injuv.services import resenas as resenas_svc
 
 router = APIRouter(prefix="/public", tags=["Público"])
 
@@ -25,31 +25,11 @@ def estadisticas(db: DbSession) -> dict[str, int]:
 
 @router.get("/resenas")
 def resenas(db: DbSession, limite: int = Query(6, ge=1, le=30)) -> list[dict[str, Any]]:
-    rows = db.execute(
-        select(Postulacion, Usuario, Oportunidad.titulo, Organizacion.id, Organizacion.nombre)
-        .join(Usuario, Usuario.id == Postulacion.usuario_id)
-        .join(Oportunidad, Oportunidad.id == Postulacion.oportunidad_id)
-        .join(Organizacion, Organizacion.id == Oportunidad.organizacion_id)
-        .where(
-            Postulacion.resena_usuario.is_not(None),
-            Postulacion.resena_usuario != "",
-            Postulacion.resena_usuario_publica.is_not(False),
-        )
-        .order_by(Postulacion.updated_at.desc().nullslast())
-        .limit(limite)
-    ).all()
-    return [
-        {
-            "postulacion_id": p.id,
-            "usuario_nombre": serializers.nombre_completo(u),
-            "usuario_tiene_foto": bool(u.foto_perfil),
-            "usuario_id": u.id,
-            "oportunidad_titulo": titulo,
-            "organizacion_id": org_id,
-            "organizacion_nombre": org_nombre or "",
-            "resena": p.resena_usuario,
-            "calificacion": float(p.calificacion_usuario_org) if p.calificacion_usuario_org is not None else None,
-            "fecha": p.updated_at or p.created_at,
-        }
-        for p, u, titulo, org_id, org_nombre in rows
-    ]
+    cfg = db.get(PortadaConfig, 1)
+    ids = list(cfg.resenas_ids or []) if cfg else []
+    if not ids:
+        return []
+    rows = db.execute(resenas_svc.consulta_publicas().where(Postulacion.id.in_(ids))).all()
+    posicion = {pid: i for i, pid in enumerate(ids)}
+    rows.sort(key=lambda r: posicion.get(r[0].id, len(ids)))
+    return [resenas_svc.a_dict(row) for row in rows[:limite]]

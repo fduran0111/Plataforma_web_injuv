@@ -86,3 +86,11 @@ export const ROL_LABEL: Record<string, string> = {
   organizacion: "Organización",
   admin: "Administrador",
 };
+
+export const MOTIVOS_REPORTE_RESENA = {
+  ofensivo: "Lenguaje ofensivo o discriminatorio",
+  falso: "Información falsa o engañosa",
+  datos_personales: "Expone datos personales",
+  spam: "Spam o publicidad",
+  otro: "Otro motivo",
+} as const;

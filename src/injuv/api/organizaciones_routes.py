@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import and_, func, or_, select
 
 from injuv.api.deps import CurrentUser, DbSession, MemberOrganization, OwnOrganization
-from injuv.db.models import Oportunidad, Organizacion, Postulacion, SolicitudOrganizacion, Usuario
+from injuv.db.models import Oportunidad, Organizacion, Postulacion, ReporteResena, SolicitudOrganizacion, Usuario
 from injuv.schemas.perfiles import MiembroBody, OrganizacionBody, SolicitudOrganizacionBody
 from injuv.services import files, serializers
 from injuv.services.catalogo import limpiar_rut
@@ -65,6 +65,16 @@ def _resenas(db: DbSession, org_id: int, solo_publicas: bool) -> list[dict[str, 
     )
     if solo_publicas:
         stmt = stmt.where(Postulacion.resena_usuario_publica.is_not(False))
+    rows = db.execute(stmt).all()
+    reportadas: set[int] = set()
+    if not solo_publicas and rows:
+        reportadas = set(
+            db.scalars(
+                select(ReporteResena.postulacion_id).where(
+                    ReporteResena.postulacion_id.in_([p.id for p, _, _ in rows]), ReporteResena.estado == "pendiente"
+                )
+            ).all()
+        )
     return [
         {
             "postulacion_id": p.id,
@@ -75,8 +85,9 @@ def _resenas(db: DbSession, org_id: int, solo_publicas: bool) -> list[dict[str, 
             "calificacion": float(p.calificacion_usuario_org) if p.calificacion_usuario_org is not None else None,
             "es_publica": p.resena_usuario_publica is not False,
             "fecha": p.updated_at or p.created_at,
+            **({"reporte_pendiente": p.id in reportadas} if not solo_publicas else {}),
         }
-        for p, titulo, u in db.execute(stmt).all()
+        for p, titulo, u in rows
     ]
 
 

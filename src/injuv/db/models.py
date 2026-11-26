@@ -238,6 +238,7 @@ class PortadaConfig(Base):
     acceso_titulo: Mapped[str | None] = mapped_column(String(80))
     acceso_subtitulo: Mapped[str | None] = mapped_column(String(120))
     acceso_cita: Mapped[str | None] = mapped_column(String(120))
+    resenas_ids: Mapped[Any] = mapped_column(JSONB, default=list)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
@@ -267,6 +268,21 @@ class Notificacion(Base):
     enlace: Mapped[str | None] = mapped_column(String(300))
     leida: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+
+class ReporteResena(Base):
+    """Reporte de una organización sobre una reseña de voluntario (migrations/010_reportes_resena.sql)."""
+
+    __tablename__ = "reportes_resena"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    postulacion_id: Mapped[int] = mapped_column(Integer)
+    reportado_por: Mapped[int | None] = mapped_column(Integer)
+    motivo: Mapped[str] = mapped_column(String(40))
+    detalle: Mapped[str | None] = mapped_column(String(500))
+    estado: Mapped[str] = mapped_column(String(20), default="pendiente")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    resuelto_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class ForoMensaje(Base):

@@ -58,3 +58,7 @@ class PortadaFotoPatch(BaseModel):
 class PortadaOrdenBody(BaseModel):
     seccion: Literal["inicio", "galeria", "acceso"]
     ids: list[int] = Field(min_length=1)
+
+
+class PortadaResenasBody(BaseModel):
+    ids: list[int] = Field(default_factory=list, max_length=11)

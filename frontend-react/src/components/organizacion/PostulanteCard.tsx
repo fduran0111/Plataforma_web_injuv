@@ -1,13 +1,12 @@
 "use client";
 
-import { ChevronDown, ChevronUp, Download, Eye, EyeOff, FileCheck2, Mail, MapPin, MessageCircle, Phone, Send, Star, Upload } from "lucide-react";
+import { ChevronDown, ChevronUp, Download, FileCheck2, Mail, MapPin, MessageCircle, Phone, Send, Star, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { Alert, Avatar, Badge, Button, buttonClass, Card, Checkbox, Input, Modal, Select, Spinner, Stars, Textarea } from "@/components/ui";
 import { apiFetch, downloadFile, fileUrl } from "@/lib/api";
 import { ESTADO_POSTULACION_TONE, ESTADOS_POSTULACION, MOTIVOS_NO_SELECCION } from "@/lib/constants";
 import { formatDate, formatRut } from "@/lib/format";
 import type { Asistencia, FichaPostulante, Postulante, PreguntaOportunidad } from "@/lib/types";
-import { useAuth } from "@/providers/AuthProvider";
 import { useToast } from "@/providers/ToastProvider";
 
 const ASISTENCIAS: Asistencia[] = ["No aplica", "SI", "No"];
@@ -47,8 +46,6 @@ export default function PostulanteCard({
     ? `https://wa.me/${waNumero}?text=${encodeURIComponent(`Hola ${p.usuario_nombre}, te escribimos por tu postulación a "${oportunidadTitulo}".`)}`
     : null;
   const toast = useToast();
-  const { user } = useAuth();
-  const esMiembro = user?.organizacion?.rol === "miembro";
   const certRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [estadoModal, setEstadoModal] = useState<string | null>(null);
@@ -161,12 +158,6 @@ export default function PostulanteCard({
         }),
       "Reseña guardada",
     ).then((ok) => ok && setResenaOpen(false));
-
-  const toggleVisibilidad = () =>
-    run(
-      () => apiFetch(`/postulaciones/${p.id}/visibilidad-resena`, { method: "PATCH", body: { es_publica: !p.resena_usuario_publica } }),
-      p.resena_usuario_publica ? "Reseña ocultada del perfil público" : "Reseña publicada",
-    );
 
   const declinada = p.estado === "Declinada por usuario";
   const noSeleccionado = p.estado === "No seleccionado";
@@ -430,12 +421,6 @@ export default function PostulanteCard({
         <Button size="sm" variant="ghost" disabled={!!bloqueoCierre} title={bloqueoCierre ?? undefined} onClick={() => setResenaOpen(true)}>
           <Star className="h-4 w-4" /> {p.resena_org || p.calificacion_org != null ? "Editar evaluación" : "Evaluar voluntario"}
         </Button>
-        {p.resena_usuario && gestiona && !esMiembro && (
-          <Button size="sm" variant="ghost" loading={busy} onClick={toggleVisibilidad}>
-            {p.resena_usuario_publica ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            {p.resena_usuario_publica ? "Ocultar reseña" : "Publicar reseña"}
-          </Button>
-        )}
         {bloqueoCierre && (gestiona ? !p.tiene_certificado : true) && (
           <span className="text-xs text-fg-muted">{gestiona ? "Certificado y evaluación" : "Evaluación"}: {bloqueoCierre.toLowerCase()}.</span>
         )}
@@ -446,7 +431,7 @@ export default function PostulanteCard({
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {p.resena_usuario && (
             <div className="rounded-xl bg-page p-4">
-              <p className="text-xs font-semibold uppercase text-fg-muted">Reseña del voluntario {p.resena_usuario_publica ? "(pública)" : "(oculta)"}</p>
+              <p className="text-xs font-semibold uppercase text-fg-muted">Reseña del voluntario {p.resena_usuario_publica ? "(pública)" : "(privada)"}</p>
               <div className="mt-1.5">
                 <Stars value={p.calificacion_usuario} />
               </div>

@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { animate, type AnimationPlaybackControls } from "motion";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NoticiaCard, ResenaCard } from "@/components/ContentCards";
 import AreaTile from "@/components/home/AreaTile";
 import GaleriaFotos from "@/components/home/GaleriaFotos";
@@ -23,6 +23,7 @@ import { ICONO_AREA } from "@/lib/areas";
 import { AREAS_VOLUNTARIADO, REGIONES } from "@/lib/constants";
 import { cn } from "@/lib/format";
 import type { Noticia, Oportunidad, PortadaPublica, ResenaPublica } from "@/lib/types";
+import { useReducedMotion } from "@/lib/motion";
 import { useAuth } from "@/providers/AuthProvider";
 
 type Stats = { voluntarios: number; organizaciones: number; oportunidades: number; horas: number };
@@ -69,6 +70,43 @@ function SectionTitle({
   );
 }
 
+/** Tarjetas de reseñas de a dos: cambian solas con un fundido lento; se pausan con el mouse encima o si la pestaña no se ve. */
+function ResenasRotativas({ resenas }: { resenas: ResenaPublica[] }) {
+  const reduced = useReducedMotion();
+  const [activa, setActiva] = useState(0);
+  const [pausa, setPausa] = useState(false);
+  const grupos: ResenaPublica[][] = [];
+  for (let i = 0; i < resenas.length; i += 2) grupos.push(resenas.slice(i, i + 2));
+  const total = grupos.length;
+
+  useEffect(() => {
+    if (total < 2 || pausa || reduced) return;
+    const id = window.setInterval(() => {
+      if (!document.hidden) setActiva((i) => (i + 1) % total);
+    }, 5000);
+    return () => window.clearInterval(id);
+  }, [total, pausa, reduced]);
+
+  return (
+    <div className="grid" aria-live="polite" onPointerEnter={() => setPausa(true)} onPointerLeave={() => setPausa(false)}>
+      {grupos.map((g, i) => (
+        <div
+          key={g[0].postulacion_id}
+          aria-hidden={i !== activa}
+          className={cn(
+            "flex flex-col gap-5 [grid-area:1/1] transition-opacity ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none",
+            i === activa ? "opacity-100 delay-[700ms] duration-[1000ms]" : "pointer-events-none opacity-0 duration-[700ms]",
+          )}
+        >
+          {g.map((r) => (
+            <ResenaCard key={r.postulacion_id} r={r} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function HomeClient({ portada }: { portada: PortadaPublica | null }) {
   const router = useRouter();
   const { user } = useAuth();
@@ -77,7 +115,7 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
   const stats = useApi<Stats>("/public/estadisticas");
   const oportunidades = useApi<Oportunidad[]>("/oportunidades?limit=6");
   const noticias = useApi<Noticia[]>("/noticias?limit=3");
-  const resenas = useApi<ResenaPublica[]>("/public/resenas?limite=3");
+  const resenas = useApi<ResenaPublica[]>("/public/resenas?limite=11");
   const postuladas = useOportunidadesPostuladas();
 
   // Carrusel de voluntariados
@@ -442,11 +480,12 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
 
       {/* Reseñas */}
       {!!resenas.data?.length && (
-        <section className="bg-brand py-24 text-white lg:py-32">
+        <section className="bg-tinta py-20 text-white lg:py-24">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <SectionTitle eyebrow="Experiencias" title="Lo que dicen nuestros voluntarios" highlight="voluntarios" inverse />
-            <div className="lg:grid lg:grid-cols-12 lg:gap-x-8">
-              <figure className="relative lg:col-span-7">
+            <div className="lg:grid lg:grid-cols-12 lg:items-center lg:gap-x-8">
+              <div className="lg:col-span-7">
+              <SectionTitle eyebrow="Experiencias" title="Lo que dicen nuestros voluntarios" highlight="voluntarios" inverse />
+              <figure className="relative">
                 <span aria-hidden className="absolute -left-4 -top-8 font-display text-[6rem] leading-none text-ambar lg:-left-8">
                   “
                 </span>
@@ -459,18 +498,21 @@ export default function HomeClient({ portada }: { portada: PortadaPublica | null
                     <Stars value={resenas.data[0].calificacion} />
                     <p className="truncate font-semibold text-white">{resenas.data[0].usuario_nombre}</p>
                     <p className="truncate text-sm text-white/75">
-                      {resenas.data[0].oportunidad_titulo} · {resenas.data[0].organizacion_nombre}
+                      Para{" "}
+                      <Link href={`/organizaciones/${resenas.data[0].organizacion_id}`} className="font-semibold text-ambar hover:underline">
+                        {resenas.data[0].organizacion_nombre}
+                      </Link>{" "}
+                      · {resenas.data[0].oportunidad_titulo}
                     </p>
                   </div>
                 </figcaption>
               </figure>
-              <Stagger className="mt-12 space-y-5 lg:col-span-4 lg:col-start-9 lg:mt-0">
-                {resenas.data.slice(1).map((r) => (
-                  <StaggerItem key={r.postulacion_id} className="h-full">
-                    <ResenaCard r={r} />
-                  </StaggerItem>
-                ))}
-              </Stagger>
+              </div>
+              {resenas.data.length > 1 && (
+                <div className="mt-12 lg:col-span-4 lg:col-start-9 lg:mt-0">
+                  <ResenasRotativas resenas={resenas.data.slice(1)} />
+                </div>
+              )}
             </div>
           </div>
         </section>
