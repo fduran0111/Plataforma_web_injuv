@@ -58,6 +58,65 @@ def cerrar_convocatorias_vencidas(db: DbSession) -> None:
         db.commit()
 
 
+def emitir_certificados_pendientes(db: DbSession, op: Oportunidad) -> int:
+    """Genera el certificado de cada voluntario seleccionado que participó y aún no lo tiene.
+    Solo cuando el voluntariado ya terminó. Devuelve cuántos se emitieron."""
+    from injuv.services import certificado as certificado_service
+    from injuv.services.catalogo import voluntariado_terminado
+
+    if not voluntariado_terminado(op):
+        return 0
+    org = db.get(Organizacion, op.organizacion_id)
+    plantilla = files.leer_bytes("plantillas_certificado", org.certificado_plantilla) if org else None
+    emitidos = 0
+    for p in db.scalars(
+        select(Postulacion).where(
+            Postulacion.oportunidad_id == op.id,
+            Postulacion.estado == "Seleccionado",
+        )
+    ):
+        if rechazo_participacion(p) or p.tiene_certificado:
+            continue
+        voluntario = db.get(Usuario, p.usuario_id)
+        if not voluntario:
+            continue
+        if plantilla:
+            pdf = certificado_service.estampar_sobre_plantilla(plantilla, p, op, org, voluntario)
+        else:
+            pdf = certificado_service.generar_certificado(p, op, org, voluntario)
+        name = f"certificado_{p.id}_{datetime.now():%Y%m%d_%H%M%S}.pdf"
+        files.guardar_bytes("certificados_voluntarios", name, pdf, "application/pdf")
+        files.delete("certificados_voluntarios", p.ruta_certificado_pdf)
+        p.ruta_certificado_pdf = name
+        p.tiene_certificado = True
+        emitidos += 1
+        notificaciones.notificar(
+            db,
+            p.usuario_id,
+            "certificado",
+            "Tu certificado está listo",
+            f"Ya puedes descargar tu certificado de «{op.titulo}» desde tu perfil.",
+            "/perfil",
+        )
+    if emitidos:
+        db.commit()
+    return emitidos
+
+
+def emitir_certificados_de_terminados(db: DbSession) -> None:
+    """Emite los certificados pendientes de todos los voluntariados que ya terminaron."""
+    ops = db.scalars(
+        select(Oportunidad).where(
+            or_(
+                Oportunidad.fecha_fin_voluntariado <= date.today(),
+                and_(Oportunidad.fecha_fin_voluntariado.is_(None), Oportunidad.estado == "cerrada"),
+            )
+        )
+    ).all()
+    for op in ops:
+        emitir_certificados_pendientes(db, op)
+
+
 def get_oportunidad_or_404(db: DbSession, oportunidad_id: int) -> Oportunidad:
     op = db.get(Oportunidad, oportunidad_id)
     if not op:
@@ -142,6 +201,7 @@ def listar(
     limit: int = Query(200, ge=1, le=500),
 ) -> list[dict[str, Any]]:
     cerrar_convocatorias_vencidas(db)
+    emitir_certificados_de_terminados(db)
     counts = _count_subquery()
     stmt = (
         select(Oportunidad, Organizacion, func.coalesce(counts.c.n, 0))
@@ -200,6 +260,7 @@ def listar_mis_tutorias(db: DbSession, user: CurrentUser) -> list[dict[str, Any]
 @router.get("/{oportunidad_id}")
 def obtener(oportunidad_id: int, db: DbSession, user: OptionalUser) -> dict[str, Any]:
     cerrar_convocatorias_vencidas(db)
+    emitir_certificados_de_terminados(db)
     op = get_oportunidad_or_404(db, oportunidad_id)
     data = _serialize(db, op)
     data["mi_postulacion"] = None
@@ -356,6 +417,7 @@ def cambiar_estado(
         ).all()
         for email, nombre in rows:
             background.add_task(mailer.notify_oportunidad_cerrada, email, nombre or "", op.titulo, de)
+        emitir_certificados_pendientes(db, op)
     return _serialize(db, op)
 
 

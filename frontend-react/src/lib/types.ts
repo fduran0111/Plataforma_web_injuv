@@ -175,6 +175,8 @@ export type Organizacion = {
   logo_version: string | null;
   tiene_banner: boolean;
   banner_version: string | null;
+  tiene_plantilla_certificado: boolean;
+  plantilla_certificado_version: string | null;
   created_at: string | null;
   num_oportunidades?: number;
   total_postulaciones?: number;

@@ -277,7 +277,11 @@ def generar_certificado(postulacion_id: int, db: DbSession, user: CurrentUser) -
     p, op, org = _managed(db, postulacion_id, user, solo_admin_org=True)
     _exigir_fin_de_ciclo(p, op, "emitir el certificado")
     voluntario = db.get(Usuario, p.usuario_id)
-    pdf = certificado_service.generar_certificado(p, op, org, voluntario)
+    plantilla = files.leer_bytes("plantillas_certificado", org.certificado_plantilla) if org else None
+    if plantilla:
+        pdf = certificado_service.estampar_sobre_plantilla(plantilla, p, op, org, voluntario)
+    else:
+        pdf = certificado_service.generar_certificado(p, op, org, voluntario)
     name = f"certificado_{p.id}_{datetime.now():%Y%m%d_%H%M%S}.pdf"
     files.guardar_bytes(CERT_FOLDER, name, pdf, "application/pdf")
     files.delete(CERT_FOLDER, p.ruta_certificado_pdf)

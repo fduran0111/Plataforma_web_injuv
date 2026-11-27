@@ -168,7 +168,7 @@ export default function PostulacionesTab({ user }: { user: Usuario }) {
                   <Download className="h-4 w-4" /> Descargar certificado
                 </Button>
               )}
-              {seleccionado && !p.rechazo_participacion && !p.tiene_certificado && (
+              {p.puede_certificar_y_evaluar && !p.tiene_certificado && (
                 <Badge tone="neutral">
                   <Award className="h-3.5 w-3.5" /> Certificado pendiente
                 </Badge>

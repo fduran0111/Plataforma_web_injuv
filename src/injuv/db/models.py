@@ -70,6 +70,7 @@ class Organizacion(Base):
     id_usuario_admin: Mapped[int | None] = mapped_column(Integer)
     logo_filename: Mapped[str | None] = mapped_column(String(255))
     banner_filename: Mapped[str | None] = mapped_column(String(255))
+    certificado_plantilla: Mapped[str | None] = mapped_column(String(255))
 
 
 class SolicitudOrganizacion(Base):

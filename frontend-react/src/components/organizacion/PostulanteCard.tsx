@@ -59,6 +59,9 @@ export default function PostulanteCard({
   const [fichaOpen, setFichaOpen] = useState(false);
   const [ficha, setFicha] = useState<FichaPostulante | null>(null);
   const [fichaLoading, setFichaLoading] = useState(false);
+  const [certOpen, setCertOpen] = useState(false);
+  const [certFile, setCertFile] = useState<File | null>(null);
+  const [certPreview, setCertPreview] = useState<string | null>(null);
 
   async function toggleFicha() {
     setFichaOpen((o) => !o);
@@ -110,12 +113,29 @@ export default function PostulanteCard({
       "Estado actualizado — se notificó por correo",
     ).then((ok) => ok && setEstadoModal(null));
 
-  const subirCertificado = async (file: File | undefined) => {
-    if (!file) return;
-    const body = new FormData();
-    body.append("certificado", file);
-    await run(() => apiFetch(`/postulaciones/${p.id}/certificado`, { method: "POST", body }), "Certificado subido");
+  const cerrarCertificado = () => {
+    setCertOpen(false);
+    setCertFile(null);
+    if (certPreview) URL.revokeObjectURL(certPreview);
+    setCertPreview(null);
     if (certRef.current) certRef.current.value = "";
+  };
+
+  const elegirCertificado = (file: File | undefined) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".pdf")) return toast("Solo se aceptan archivos PDF", "error");
+    if (file.size > 10 * 1024 * 1024) return toast("El PDF no puede pesar más de 10 MB", "error");
+    if (certPreview) URL.revokeObjectURL(certPreview);
+    setCertFile(file);
+    setCertPreview(URL.createObjectURL(file));
+  };
+
+  const confirmarCertificado = async () => {
+    if (!certFile) return;
+    const body = new FormData();
+    body.append("certificado", certFile);
+    const ok = await run(() => apiFetch(`/postulaciones/${p.id}/certificado`, { method: "POST", body }), "Certificado subido");
+    if (ok) cerrarCertificado();
   };
 
   const enviarCertificado = async () => {
@@ -369,7 +389,7 @@ export default function PostulanteCard({
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
         {gestiona && (
         <>
-        <input ref={certRef} type="file" accept="application/pdf" className="hidden" onChange={(e) => subirCertificado(e.target.files?.[0])} />
+        <input ref={certRef} type="file" accept="application/pdf" className="hidden" onChange={(e) => elegirCertificado(e.target.files?.[0])} />
         {p.tiene_certificado ? (
           <>
             <Button size="sm" variant="secondary" onClick={() => downloadFile(`/postulaciones/${p.id}/certificado`, "certificado_voluntariado.pdf")}>
@@ -405,7 +425,7 @@ export default function PostulanteCard({
               loading={busy}
               disabled={!!bloqueoCierre}
               title={bloqueoCierre ?? undefined}
-              onClick={() => certRef.current?.click()}
+              onClick={() => setCertOpen(true)}
             >
               <Upload className="h-4 w-4" /> Subir PDF propio
             </Button>
@@ -525,6 +545,53 @@ export default function PostulanteCard({
             El correo se envía desde la plataforma en nombre de tu organización.
           </Card>
         </form>
+      </Modal>
+
+      <Modal
+        open={certOpen}
+        onClose={cerrarCertificado}
+        title={`Certificado para ${p.usuario_nombre}`}
+        description="Este PDF reemplaza al certificado estándar INJUV y es el que el voluntario descargará desde su perfil."
+        size="xl"
+        footer={
+          <>
+            <Button variant="outline" onClick={cerrarCertificado}>
+              Cancelar
+            </Button>
+            <Button loading={busy} disabled={!certFile} onClick={confirmarCertificado}>
+              <Upload className="h-4 w-4" /> Usar este certificado
+            </Button>
+          </>
+        }
+      >
+        <div className="grid gap-5 sm:grid-cols-[260px_minmax(0,1fr)]">
+          <div className="space-y-3">
+            <Card className="bg-page p-4 text-xs leading-relaxed text-fg-secondary">
+              <p className="mb-2 text-sm font-semibold text-fg">Especificaciones</p>
+              <ul className="list-disc space-y-1 pl-4">
+                <li><strong>Formato:</strong> solo PDF, máximo 10 MB.</li>
+                <li><strong>Tamaño:</strong> hoja <strong>A4 horizontal</strong> (297 × 210 mm, carta horizontal también sirve).</li>
+                <li><strong>Páginas:</strong> una sola página; si tiene más, el voluntario las verá todas igual.</li>
+                <li><strong>Legibilidad:</strong> el voluntario lo abrirá en pantalla y también puede imprimirlo — evita fondos muy oscuros.</li>
+                <li>Debe incluir nombre del voluntario, voluntariado, horas y firma de la organización.</li>
+              </ul>
+            </Card>
+            <Button variant="secondary" className="w-full" onClick={() => certRef.current?.click()}>
+              <Upload className="h-4 w-4" /> {certFile ? "Elegir otro archivo" : "Elegir PDF"}
+            </Button>
+            {certFile && <p className="truncate text-xs text-fg-muted" title={certFile.name}>{certFile.name} · {(certFile.size / 1024 / 1024).toFixed(2)} MB</p>}
+          </div>
+          <div className="recorte min-h-[420px] border-[1.5px] border-tinta/15 bg-tinta/5">
+            {certPreview ? (
+              <iframe src={certPreview} title="Vista previa del certificado" className="h-full min-h-[420px] w-full" />
+            ) : (
+              <div className="flex h-full min-h-[420px] flex-col items-center justify-center gap-2 p-6 text-center text-sm text-fg-muted">
+                <FileCheck2 className="h-8 w-8" />
+                <p>Elige un PDF para ver aquí cómo se verá el certificado antes de subirlo.</p>
+              </div>
+            )}
+          </div>
+        </div>
       </Modal>
     </Card>
   );
