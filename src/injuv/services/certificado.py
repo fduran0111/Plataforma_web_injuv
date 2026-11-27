@@ -167,3 +167,104 @@ def generar_certificado(p: Postulacion, op: Oportunidad, org: Organizacion | Non
     c.showPage()
     c.save()
     return buf.getvalue()
+
+
+def estampar_sobre_plantilla(plantilla_pdf: bytes, p: Postulacion, op: Oportunidad, org: Organizacion | None, voluntario: Usuario) -> bytes:
+    """Estampa los datos del voluntario sobre la primera página de la plantilla PDF de la organización.
+
+    La plantilla debe ser una hoja horizontal con la zona central libre:
+    el texto se dibuja centrado entre el 38% y el 72% del alto de la página.
+    """
+    from pypdf import PdfReader, PdfWriter
+    from reportlab.lib.colors import HexColor
+    from reportlab.pdfgen import canvas
+
+    escritor = PdfWriter(clone_from=BytesIO(plantilla_pdf))
+    if not escritor.pages:
+        raise ValueError("La plantilla no tiene páginas")
+    pagina = escritor.pages[0]
+    w = float(pagina.mediabox.width)
+    h = float(pagina.mediabox.height)
+
+    azul = HexColor("#1d4ed8")
+    tinta = HexColor("#0f1b2d")
+    gris = HexColor("#5b6b82")
+
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=(w, h))
+    cx = w / 2
+    y = h * 0.62
+
+    nombre = f"{(voluntario.nombre or '').strip()} {(voluntario.apellido or '').strip()}".strip() or "Voluntario/a"
+    rut = _rut_formateado(voluntario.rut)
+    c.setFillColor(tinta)
+    c.setFont("Helvetica-Bold", min(24, max(14, w / 42)))
+    c.drawCentredString(cx, y, nombre.upper())
+    y -= h * 0.045
+    if rut:
+        c.setFillColor(gris)
+        c.setFont("Helvetica", 11)
+        c.drawCentredString(cx, y, f"RUT {rut}")
+        y -= h * 0.045
+
+    c.setFillColor(tinta)
+    c.setFont("Helvetica", 12)
+    c.drawCentredString(cx, y, "participó en el voluntariado")
+    y -= h * 0.04
+
+    titulo = (op.titulo or "").strip()
+    c.setFillColor(azul)
+    c.setFont("Helvetica-Bold", 15)
+    if len(titulo) > 70:
+        corte = titulo.rfind(" ", 0, 70)
+        c.drawCentredString(cx, y, f'"{titulo[:corte]}"')
+        y -= h * 0.035
+        c.drawCentredString(cx, y, f'"{titulo[corte:].strip()}"')
+    else:
+        c.drawCentredString(cx, y, f'"{titulo}"')
+    y -= h * 0.045
+
+    detalles: list[str] = []
+    rango = _fecha_rango(op)
+    if rango:
+        detalles.append(rango)
+    horas = p.horas_voluntariado or op.horas_voluntariado
+    if horas:
+        detalles.append(f"con un total de {horas:g} horas")
+    texto = ", ".join(detalles).capitalize()
+    if texto:
+        c.setFillColor(tinta)
+        c.setFont("Helvetica", 11)
+        if len(texto) > 90:
+            corte = texto.rfind(" ", 0, 90)
+            c.drawCentredString(cx, y, f"{texto[:corte]},")
+            y -= h * 0.032
+            c.drawCentredString(cx, y, texto[corte:].strip().rstrip(".") + ".")
+        else:
+            c.drawCentredString(cx, y, texto + ".")
+    c.showPage()
+    c.save()
+
+    superposicion = PdfReader(BytesIO(buf.getvalue())).pages[0]
+    pagina.merge_page(superposicion)
+
+    salida = BytesIO()
+    escritor.write(salida)
+    return salida.getvalue()
+
+
+def png_primera_pagina(pdf_bytes: bytes, escala: float = 1.6) -> bytes:
+    """Rasteriza la primera página del PDF a PNG (para miniaturas en la web)."""
+    import pypdfium2 as pdfium
+
+    doc = pdfium.PdfDocument(pdf_bytes)
+    try:
+        if not len(doc):
+            raise ValueError("El PDF no tiene páginas")
+        bitmap = doc[0].render(scale=escala)
+        img = bitmap.to_pil()
+        salida = BytesIO()
+        img.save(salida, format="PNG", optimize=True)
+        return salida.getvalue()
+    finally:
+        doc.close()

@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import and_, func, or_, select
 
 from injuv.api.deps import CurrentUser, DbSession, MemberOrganization, OwnOrganization
@@ -240,6 +240,69 @@ async def subir_certificacion(
 def eliminar_certificacion(archivo: str, db: DbSession, org: OwnOrganization) -> dict[str, Any]:
     files.delete(CERT_FOLDER, archivo)
     org.certificacion = [c for c in (org.certificacion or []) if not (isinstance(c, dict) and c.get("archivo") == archivo)]
+    db.commit()
+    return _detalle(db, org)
+
+
+# ---------- Plantilla de certificado propia ----------
+
+PLANTILLA_FOLDER = "plantillas_certificado"
+
+
+@router.post("/mia/plantilla-certificado")
+async def subir_plantilla_certificado(db: DbSession, org: OwnOrganization, archivo: UploadFile = File(...)) -> dict[str, Any]:
+    """PDF de fondo que se usa al emitir certificados: la plataforma estampa los datos encima."""
+    name, _, _ = await files.save_upload(archivo, PLANTILLA_FOLDER, f"org_{org.id}", {".pdf"}, 10)
+    files.delete(PLANTILLA_FOLDER, org.certificado_plantilla)
+    org.certificado_plantilla = name
+    db.commit()
+    return _detalle(db, org)
+
+
+@router.get("/mia/plantilla-certificado")
+def descargar_plantilla_certificado(org: OwnOrganization) -> FileResponse:
+    return files.send(PLANTILLA_FOLDER, org.certificado_plantilla, "plantilla_certificado.pdf")
+
+
+def _pdf_vista_previa(plantilla: bytes | None, org: Organizacion) -> bytes:
+    """La plantilla con datos de ejemplo estampados, para que la organización vea el resultado."""
+    if not plantilla:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No hay plantilla subida")
+    from types import SimpleNamespace
+
+    from injuv.services import certificado as certificado_service
+
+    hoy = datetime.now()
+    p = SimpleNamespace(id=0, horas_voluntariado=40)
+    op = SimpleNamespace(
+        titulo="Voluntariado de ejemplo",
+        fecha_inicio_voluntariado=hoy,
+        fecha_fin_voluntariado=hoy,
+        horas_voluntariado=40,
+    )
+    voluntario = SimpleNamespace(nombre="Nombre", apellido="Apellido", rut="12345678-9")
+    return certificado_service.estampar_sobre_plantilla(plantilla, p, op, org, voluntario)
+
+
+@router.get("/mia/plantilla-certificado/vista-previa")
+def vista_previa_plantilla_certificado(db: DbSession, org: OwnOrganization) -> Response:
+    pdf = _pdf_vista_previa(files.leer_bytes(PLANTILLA_FOLDER, org.certificado_plantilla), org)
+    return Response(content=pdf, media_type="application/pdf")
+
+
+@router.get("/mia/plantilla-certificado/vista-previa.png")
+def vista_previa_plantilla_png(db: DbSession, org: OwnOrganization) -> Response:
+    """La misma vista previa como imagen, para mostrarla en la web sin el visor de PDF."""
+    from injuv.services import certificado as certificado_service
+
+    pdf = _pdf_vista_previa(files.leer_bytes(PLANTILLA_FOLDER, org.certificado_plantilla), org)
+    return Response(content=certificado_service.png_primera_pagina(pdf), media_type="image/png")
+
+
+@router.delete("/mia/plantilla-certificado")
+def eliminar_plantilla_certificado(db: DbSession, org: OwnOrganization) -> dict[str, Any]:
+    files.delete(PLANTILLA_FOLDER, org.certificado_plantilla)
+    org.certificado_plantilla = None
     db.commit()
     return _detalle(db, org)
 
